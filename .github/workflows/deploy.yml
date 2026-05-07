@@ -1,0 +1,166 @@
+name: workforce-backend-deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "v1.28.0"
+        id: install
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET }}
+          aws-region: ap-northeast-2
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name 4team-cluster --region ap-northeast-2
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # ============================================
+      # gateway
+      # ============================================
+      - name: gateway build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/gateway
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./gateway/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: gateway kubectl apply
+        run: |
+          kubectl apply -f ./gateway/k8s/depl_svc.yml
+          kubectl rollout restart deployment gateway-depl -n 4team
+
+      # ============================================
+      # member-service
+      # ============================================
+      - name: member build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/member
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./member-service/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: member kubectl apply
+        run: |
+          kubectl apply -f ./member-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment member-depl -n 4team
+
+      # ============================================
+      # salary-service
+      # ============================================
+      - name: salary build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/salary
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./salary-service/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: salary kubectl apply
+        run: |
+          kubectl apply -f ./salary-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment salary-depl -n 4team
+
+      # ============================================
+      # approval-service
+      # ============================================
+      - name: approval build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/approval
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./approval-service/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: approval kubectl apply
+        run: |
+          kubectl apply -f ./approval-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment approval-depl -n 4team
+
+      # ============================================
+      # goal-service
+      # ============================================
+      - name: goal build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/goal
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./goal-service/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: goal kubectl apply
+        run: |
+          kubectl apply -f ./goal-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment goal-depl -n 4team
+
+      # ============================================
+      # search-service
+      # ============================================
+      - name: search build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/search
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./search-service/Dockerfile .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: search kubectl apply
+        run: |
+          kubectl apply -f ./search-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment search-depl -n 4team
+
+      # ============================================
+      # ai-service (Python / FastAPI)
+      # ============================================
+      - name: ai build and push
+        env:
+          REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com
+          REPOSITORY: 4team/ai
+          IMAGE_TAG: latest
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f ./ai-service/Dockerfile ./ai-service
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: ai kubectl apply
+        run: |
+          kubectl apply -f ./ai-service/k8s/depl_svc.yml
+          kubectl rollout restart deployment ai-depl -n 4team

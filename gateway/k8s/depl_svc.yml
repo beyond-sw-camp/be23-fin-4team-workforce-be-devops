@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-depl
+  namespace: 4team
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          # 수정 사항: ECR 주소 본인 계정 ID로 변경
+          image: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com/4team/gateway:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: "500Mi"
+            requests:
+              cpu: "0.3"
+              memory: "250Mi"
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: JWT_SECRET_AT
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: JWT_SECRET_AT
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: 4team
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: gateway

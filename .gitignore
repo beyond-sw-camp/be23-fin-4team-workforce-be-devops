@@ -1,0 +1,62 @@
+HELP.md
+.gradle
+.gradle/
+.gradle/*.lock
+.DS_Store
+**/.DS_Store
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+src/main/resources/application.yml
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+.env
+# Python (ai-service)
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Node
+node_modules/
+
+# Build artifacts
+build/
+target/
+*.jar
+
+# Local secrets
+*.env
+.env.local
+
+# Local profile config (로컬 개발용 - 시크릿 포함)
+**/application-local.yml

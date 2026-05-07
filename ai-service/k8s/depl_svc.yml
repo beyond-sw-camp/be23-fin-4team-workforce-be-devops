@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-depl
+  namespace: 4team
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai
+  template:
+    metadata:
+      labels:
+        app: ai
+    spec:
+      containers:
+        - name: ai
+          # 수정 사항: ECR 주소 본인 계정 ID로 변경
+          image: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com/4team/ai:latest
+          ports:
+            - containerPort: 8090
+          resources:
+            limits:
+              cpu: "1"
+              memory: "500Mi"
+            requests:
+              cpu: "0.3"
+              memory: "250Mi"
+          env:
+            # OpenAI / Pinecone
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: OPENAI_API_KEY
+            - name: PINECONE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: PINECONE_API_KEY
+            - name: PINECONE_INDEX_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: PINECONE_INDEX_NAME
+            # DB (RDS)
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: workforce-secrets
+                  key: DB_PASSWORD
+            # Redis (K8s Service DNS)
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            # Kafka (K8s Service DNS)
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka-service:9092"
+            # Gateway URL (K8s Service DNS)
+            - name: GATEWAY_URL
+              value: "http://gateway-service:80"
+            # Eureka 비활성화
+            - name: EUREKA_ENABLED
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: 4team
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8090
+      targetPort: 8090
+  selector:
+    app: ai

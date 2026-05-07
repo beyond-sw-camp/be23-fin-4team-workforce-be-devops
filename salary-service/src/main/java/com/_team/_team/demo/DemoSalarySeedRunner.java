@@ -1,0 +1,1369 @@
+package com._team._team.demo;
+
+import com._team._team.attendance.domain.AttendanceLog;
+import com._team._team.attendance.domain.CompanyHoliday;
+import com._team._team.attendance.domain.CompanyLeaveType;
+import com._team._team.attendance.domain.DailyAttendance;
+import com._team._team.attendance.domain.LeavePolicy;
+import com._team._team.attendance.domain.LeaveRequest;
+import com._team._team.attendance.domain.MemberBalance;
+import com._team._team.attendance.domain.MemberScheduleSelection;
+import com._team._team.attendance.domain.MonthlyAttendanceLedger;
+import com._team._team.attendance.domain.OvertimePolicy;
+import com._team._team.attendance.domain.WorkSchedule;
+import com._team._team.attendance.domain.FlexibleTimeSlot;
+import com._team._team.attendance.domain.WorkTripDetail;
+import com._team._team.attendance.domain.enums.AccrualBase;
+import com._team._team.attendance.domain.enums.ApprovalMode;
+import com._team._team.attendance.domain.enums.AttendanceStatus;
+import com._team._team.attendance.domain.enums.BalanceType;
+import com._team._team.attendance.domain.enums.ClosureStatus;
+import com._team._team.attendance.domain.enums.EventType;
+import com._team._team.attendance.domain.enums.LeaveApprovalStatus;
+import com._team._team.attendance.domain.enums.LeaveInitiator;
+import com._team._team.attendance.domain.enums.ScheduleApprovalStatus;
+import com._team._team.attendance.domain.enums.SourceType;
+import com._team._team.attendance.domain.enums.WorkTripType;
+import com._team._team.attendance.domain.enums.WorkType;
+import com._team._team.attendance.repository.AttendanceLogRepository;
+import com._team._team.attendance.repository.CompanyHolidayRepository;
+import com._team._team.attendance.repository.CompanyLeaveTypeRepository;
+import com._team._team.attendance.repository.DailyAttendanceRepository;
+import com._team._team.attendance.repository.LeavePolicyRepository;
+import com._team._team.attendance.repository.LeaveRequestRepository;
+import com._team._team.attendance.service.CompanyHolidayService;
+import com._team._team.attendance.service.CompanyLeaveTypeService;
+import com._team._team.attendance.repository.MemberBalanceRepository;
+import com._team._team.attendance.repository.MemberScheduleSelectionRepository;
+import com._team._team.attendance.repository.MonthlyAttendanceLedgerRepository;
+import com._team._team.attendance.repository.OvertimePolicyRepository;
+import com._team._team.attendance.repository.WorkScheduleRepository;
+import com._team._team.attendance.repository.FlexibleTimeSlotRepository;
+import com._team._team.attendance.repository.WorkTripDetailRepository;
+import com._team._team.dto.ApiResponse;
+import com._team._team.salary.domain.BonusPolicy;
+import com._team._team.salary.domain.MemberAllowance;
+import com._team._team.salary.domain.PayGradeTable;
+import com._team._team.salary.domain.RetirementPolicy;
+import com._team._team.salary.domain.Salary;
+import com._team._team.salary.domain.SalaryItemTemplate;
+import com._team._team.salary.domain.SalaryPolicy;
+import com._team._team.salary.domain.enums.AllowanceApprovalStatus;
+import com._team._team.salary.domain.enums.BonusEligibilityScope;
+import com._team._team.salary.domain.enums.HolidayBonusType;
+import com._team._team.salary.domain.enums.PayCycleType;
+import com._team._team.salary.domain.enums.PayDayShiftRule;
+import com._team._team.salary.domain.enums.PayrollType;
+import com._team._team.salary.domain.enums.ProrationMethod;
+import com._team._team.salary.domain.enums.RetirementType;
+import com._team._team.salary.domain.enums.TaxReductionType;
+import com._team._team.salary.domain.enums.WageSystemType;
+import com._team._team.salary.dto.reqdto.PayrollCreateReqDto;
+import com._team._team.salary.feignClients.MemberFeignClient;
+import com._team._team.salary.feignClients.dto.CompanyInfoResDto;
+import com._team._team.salary.feignClients.dto.MemberResDto;
+import com._team._team.salary.repository.BonusPolicyRepository;
+import com._team._team.salary.repository.MemberAllowanceRepository;
+import com._team._team.salary.repository.PayGradeTableRepository;
+import com._team._team.salary.repository.PayrollRepository;
+import com._team._team.salary.repository.RetirementPolicyRepository;
+import com._team._team.salary.repository.SalaryItemTemplateRepository;
+import com._team._team.salary.repository.SalaryPolicyRepository;
+import com._team._team.salary.repository.SalaryRepository;
+import com._team._team.salary.service.PayrollService;
+import com._team._team.salary.service.SalaryItemTemplateService;
+import com._team._team.salary.service.SimplifiedTaxTableService;
+import com._team._team.salary.service.TaxRateService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+/**
+ * 데모용 시드 러너 - seed.demo.enabled=true 일 때만 동작 -> 말 그대로 데모 데이터 -> 온갖 테스트용
+ *  1) 시스템 공통 시드 (멱등): TaxRate (4대보험·소득세·지방세 비율) + SimplifiedTaxTable (간이세액표 엑셀)
+ *  2) 회사 4 (도메인 demo-current): 당월/연봉제 정책 + 표준 항목 + 퇴직정책 + 연장근로정책
+ *  3) 회사 5 (도메인 demo-prev): 전월/호봉제 정책 + 호봉표 + 표준 항목 + 퇴직정책 + 연장근로정책
+ */
+@Slf4j
+@Component
+@ConditionalOnProperty(name = "seed.demo.enabled", havingValue = "true")
+@Order(100)
+@RequiredArgsConstructor
+public class DemoSalarySeedRunner implements ApplicationRunner {
+
+    private final MemberFeignClient memberFeignClient;
+    private final SalaryPolicyRepository salaryPolicyRepository;
+    private final RetirementPolicyRepository retirementPolicyRepository;
+    private final OvertimePolicyRepository overtimePolicyRepository;
+    private final PayGradeTableRepository payGradeTableRepository;
+    private final SalaryRepository salaryRepository;
+    private final MemberAllowanceRepository memberAllowanceRepository;
+    private final SalaryItemTemplateRepository salaryItemTemplateRepository;
+    private final SalaryItemTemplateService salaryItemTemplateService;
+    private final TaxRateService taxRateService;
+    private final SimplifiedTaxTableService simplifiedTaxTableService;
+    private final MonthlyAttendanceLedgerRepository ledgerRepository;
+    private final PayrollRepository payrollRepository;
+    private final PayrollService payrollService;
+    private final MemberBalanceRepository memberBalanceRepository;
+    private final BonusPolicyRepository bonusPolicyRepository;
+    private final DailyAttendanceRepository dailyAttendanceRepository;
+    private final CompanyHolidayRepository companyHolidayRepository;
+    private final CompanyHolidayService companyHolidayService;
+    private final AttendanceLogRepository attendanceLogRepository;
+    private final WorkTripDetailRepository workTripDetailRepository;
+    private final LeavePolicyRepository leavePolicyRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final CompanyLeaveTypeRepository companyLeaveTypeRepository;
+    private final CompanyLeaveTypeService companyLeaveTypeService;
+    private final WorkScheduleRepository workScheduleRepository;
+    private final FlexibleTimeSlotRepository flexibleTimeSlotRepository;
+    private final MemberScheduleSelectionRepository memberScheduleSelectionRepository;
+
+    /** AUTO 부여 (관리자 즉시 부여) 표시용 - 시드 데이터의 시스템 부여 표식 */
+    private static final UUID SYSTEM_ACTOR = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+    private static final String DOMAIN_CURRENT = "demo-current";
+    private static final String DOMAIN_PREV = "demo-prev";
+    private static final String TAX_TABLE_PATTERN = "classpath*:data/simplified-tax-table-*.xlsx";
+    private static final Pattern YEAR_REGEX = Pattern.compile("simplified-tax-table-(\\d{4})\\.xlsx");
+
+    @Override
+    public void run(ApplicationArguments args) {
+        log.info("[DEMO-SEED] 시작");
+
+        // 1) 시스템 공통 시드 (회사 무관, 한 번만)
+        try {
+            seedTaxRates();
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] TaxRate 시드 실패 (계속 진행) - {}", e.getMessage());
+        }
+        try {
+            seedSimplifiedTaxTables();
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] SimplifiedTaxTable 시드 실패 (계속 진행) - {}", e.getMessage());
+        }
+
+        // 2) 회사 4 (당월/연봉제)
+        try {
+            seedCompany(DOMAIN_CURRENT, false /* usePayGrade */, PayCycleType.CURRENT_MONTH, 25);
+        } catch (Exception e) {
+            log.error("[DEMO-SEED] 회사 4 시드 실패 - {}", e.getMessage(), e);
+        }
+
+        // 3) 회사 5 (전월/호봉제)
+        try {
+            seedCompany(DOMAIN_PREV, true, PayCycleType.PREVIOUS_MONTH, 10);
+        } catch (Exception e) {
+            log.error("[DEMO-SEED] 회사 5 시드 실패 - {}", e.getMessage(), e);
+        }
+
+        log.info("[DEMO-SEED] 정책 시드 완료. 직원/Payroll/Ledger 시드는 후속 Phase 에서 진행");
+    }
+
+    /**
+     * TaxRate 시스템 공통 시드 - applyYear 별 4대보험·소득세·지방세 비율
+     * TaxRateService.initializeDefaults 자체 멱등 처리
+     */
+    private void seedTaxRates() {
+        for (int year = 2024; year <= 2026; year++) {
+            TaxRateService.SeedResult res = taxRateService.initializeDefaults(year);
+            log.info("[DEMO-SEED] TaxRate {} 시드 - inserted={} skipped={}",
+                    res.applyYear(), res.inserted(), res.skipped());
+        }
+    }
+
+    /**
+     * SimplifiedTaxTable 시스템 공통 시드 - resources/data/simplified-tax-table-{year}.xlsx 자동 업로드
+     * 파일 없으면 skip + 경고만 (소득세 0원 fallback 동작)
+     */
+    private void seedSimplifiedTaxTables() throws IOException {
+        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource[] resources = resolver.getResources(TAX_TABLE_PATTERN);
+        if (resources.length == 0) {
+            log.warn("[DEMO-SEED] SimplifiedTaxTable 엑셀 없음 - {} 위치 확인. 소득세 0원 fallback",
+                    TAX_TABLE_PATTERN);
+            return;
+        }
+        for (Resource resource : resources) {
+            String filename = resource.getFilename();
+            if (filename == null) continue;
+            Matcher m = YEAR_REGEX.matcher(filename);
+            if (!m.find()) {
+                log.warn("[DEMO-SEED] 파일명에서 year 추출 실패 - {} (패턴: simplified-tax-table-YYYY.xlsx)", filename);
+                continue;
+            }
+            int year = Integer.parseInt(m.group(1));
+            // 이미 등록된 연도면 skip
+            if (simplifiedTaxTableService.countByYear(year) > 0) {
+                log.info("[DEMO-SEED] SimplifiedTaxTable {} 이미 등록됨 skip", year);
+                continue;
+            }
+            try (InputStream is = resource.getInputStream()) {
+                byte[] bytes = is.readAllBytes();
+                MultipartFile mock = new InMemoryMultipartFile(
+                        "file", filename,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        bytes);
+                int inserted = simplifiedTaxTableService.uploadTaxTable(year, mock);
+                log.info("[DEMO-SEED] SimplifiedTaxTable {} 업로드 완료 - {} 건", year, inserted);
+            }
+        }
+    }
+
+    /**
+     * 클래스패스 리소스를 MultipartFile 로 wrap 하기 위한 in-memory 구현
+     * (spring-test 의 MockMultipartFile 은 testImplementation 이라 main 에서 사용 불가)
+     */
+    private record InMemoryMultipartFile(
+            String name, String originalFilename, String contentType, byte[] content
+    ) implements MultipartFile {
+        @Override public String getName() { return name; }
+        @Override public String getOriginalFilename() { return originalFilename; }
+        @Override public String getContentType() { return contentType; }
+        @Override public boolean isEmpty() { return content == null || content.length == 0; }
+        @Override public long getSize() { return content == null ? 0 : content.length; }
+        @Override public byte[] getBytes() { return content == null ? new byte[0] : content; }
+        @Override public InputStream getInputStream() { return new ByteArrayInputStream(getBytes()); }
+        @Override public void transferTo(File dest) throws IOException {
+            try (FileOutputStream fos = new FileOutputStream(dest)) {
+                fos.write(getBytes());
+            }
+        }
+    }
+
+    /**
+     * 회사별 정책 시드 - 멱등 처리 (이미 있으면 skip)
+     *
+     * 의도적으로 @Transactional 미적용:
+     *  - 내부에서 호출하는 PayrollService.createPayroll 이 @Transactional 이라 같은 Tx 에 join
+     *  - 그 중 한 건 throw 시 Spring 이 Tx 를 rollback-only 로 표시
+     *  - try-catch 로 잡아도 표시는 유지 -> seedCompany 종료 시 UnexpectedRollbackException
+     *  - 결과적으로 SalaryPolicy / Salary / Ledger 등 앞서 commit 됐어야 할 데이터가 모두 롤백됨
+     *  -> 각 repository save / service call 이 자체 Tx 로 독립 commit 되도록 클래스/메서드 단위 @Transactional 제거
+     */
+    public void seedCompany(String domain, boolean usePayGrade,
+                            PayCycleType cycleType, int payDay) {
+        // 1) 회사 도메인 -> 회사 ID
+        CompanyInfoResDto company;
+        try {
+            company = memberFeignClient.getCompanyByDomain(domain).getData();
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 회사 조회 실패 domain={} - {}", domain, e.getMessage());
+            return;
+        }
+        if (company == null || company.getCompanyId() == null) {
+            log.warn("[DEMO-SEED] 회사 없음 domain={}", domain);
+            return;
+        }
+        UUID companyId = company.getCompanyId();
+        log.info("[DEMO-SEED] 회사 정책 시드 시작 - {} ({})", company.getCompanyName(), companyId);
+
+        LocalDate effectiveFrom = LocalDate.now().minusYears(3); // 24개월 데이터 시드 대비
+
+        // 2~3) SalaryPolicy 멱등 - 이미 있으면 정책 부분만 skip, 후속 시드(Salary/MemberBalance/Payroll)는 계속 진행
+        SalaryPolicy salaryPolicy = salaryPolicyRepository
+                .findActivePolicies(companyId, LocalDate.now())
+                .stream().findFirst()
+                .orElse(null);
+        if (salaryPolicy != null) {
+            log.info("[DEMO-SEED] 활성 SalaryPolicy 이미 존재 - 정책 시드 skip companyId={}", companyId);
+        } else {
+            salaryPolicy = SalaryPolicy.builder()
+                    .companyId(companyId)
+                    .policyName(usePayGrade ? "데모 호봉제 정책" : "데모 연봉제 정책")
+                    .payDay(payDay)
+                    .payDayShiftRule(PayDayShiftRule.BEFORE)
+                    .payCycleType(cycleType)
+                    .usePayGradeYn(usePayGrade ? "Y" : "N")
+                    .wageSystemType(WageSystemType.NON_COMPREHENSIVE)
+                    .fixedOvertimeMinutes(0)
+                    .monthlyOrdinaryHours(209)
+                    .prorationMethod(ProrationMethod.DAYS_IN_MONTH)
+                    .effectiveFrom(effectiveFrom)
+                    .build();
+            salaryPolicyRepository.save(salaryPolicy);
+            log.info("[DEMO-SEED] SalaryPolicy 시드 완료 cycle={} payDay={} usePayGrade={}",
+                    cycleType, payDay, usePayGrade);
+
+            // 4) RetirementPolicy - LEGAL 기본
+            RetirementPolicy retirementPolicy = RetirementPolicy.builder()
+                    .companyId(companyId)
+                    .retirementType(RetirementType.LEGAL)
+                    .effectiveFrom(effectiveFrom)
+                    .memo("데모 시드 - 법정 퇴직금")
+                    .build();
+            retirementPolicyRepository.save(retirementPolicy);
+            log.info("[DEMO-SEED] RetirementPolicy LEGAL 시드 완료");
+
+            // 5) OvertimePolicy - seedOvertimePolicy() 로 위임 (자체 멱등)
+            seedOvertimePolicy(companyId, effectiveFrom);
+
+            // 6) SalaryItemTemplate (initializeDefaults - 자체 멱등)
+            SalaryItemTemplateService.SeedResult tplResult = salaryItemTemplateService.initializeDefaults(companyId);
+            log.info("[DEMO-SEED] SalaryItemTemplate 시드 - {}", tplResult.message());
+
+            // 7) PayGradeTable - 호봉제 회사만
+            if (usePayGrade) {
+                seedPayGradeTable(companyId, effectiveFrom);
+            }
+
+            // 7-1) BonusPolicy - 회사별 보너스 룰 (정기상여 + 성과급 + 명절상여)
+            seedBonusPolicy(companyId, usePayGrade, effectiveFrom);
+        }
+
+        // 7-2) OvertimePolicy 자체 멱등 - SalaryPolicy 가 이미 있어도 OvertimePolicy 누락 시 보강
+        seedOvertimePolicy(companyId, effectiveFrom);
+
+        // 8) 직원별 Salary + MemberAllowance 시드 (자체 멱등)
+        seedEmployees(companyId, salaryPolicy.getSalaryPolicyId(), usePayGrade);
+
+        // 8-1) 직원별 ANNUAL 연차 잔여 시드 (자체 멱등)
+        seedMemberBalances(companyId);
+
+        // 8-2) 회사 공휴일 - 법정 공휴일 자동 import (daily 시드에서 휴일 skip 위해 선행)
+        seedCompanyHolidays(companyId);
+
+        // 8-2-1) LeavePolicy + CompanyLeaveType 기본 - LeaveRequest 시드 선행
+        seedLeavePolicy(companyId, effectiveFrom);
+        seedCompanyLeaveTypes(companyId);
+
+        // 8-2-2) WorkSchedule - 회사 근무 스케줄
+        // demo-current (usePayGrade=false): FIXED 1개
+        // demo-prev    (usePayGrade=true) : FLEXIBLE 1개 + EARLY/STANDARD/LATE 슬롯 3개
+        seedWorkSchedule(companyId, effectiveFrom, usePayGrade);
+
+        // 8-3) 직원별 일별 출퇴근 시드 (입사일 ~ 어제까지, 평일/공휴일 제외)
+        seedDailyAttendance(companyId);
+
+        // 9) 매월 MonthlyAttendanceLedger + Payroll 시드 (자체 멱등)
+        seedMonthlyLedgersAndPayrolls(companyId, cycleType, payDay);
+
+        log.info("[DEMO-SEED] 회사 시드 완료 - {}", company.getCompanyName());
+    }
+
+    /**
+     * 직원별 입사일 ~ 지난달까지 매월 MonthlyAttendanceLedger 와 Payroll 시드
+     *
+     * Ledger:
+     *  - regularMinutes = 209h (12540분) 표준
+     *  - 매 3개월마다 overtime 5h 추가 (퇴직금 12개월 환산 검증용)
+     *  - isLocked = false (Payroll 자동 산정 후에도 unlock 유지 - 시드 검증 편의)
+     *
+     * Payroll:
+     *  - PayrollService.createPayroll 호출 -> 자동 항목 (4대보험·소득세·통상임금·OT) 정확 산출
+     *  - 지급일 = SalaryPolicy.payCycleType 따라 산출 (CURRENT/PREVIOUS)
+     *  - 미래 지급일은 skip (오늘 이후)
+     *  - 멱등 - 이미 있으면 skip
+     */
+    private void seedMonthlyLedgersAndPayrolls(UUID companyId, PayCycleType cycleType, int payDay) {
+        ApiResponse<List<MemberResDto>> apiRes;
+        try {
+            apiRes = memberFeignClient.getMembersByCompany(companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 직원 list 조회 실패 - {}", e.getMessage());
+            return;
+        }
+        List<MemberResDto> members = apiRes != null ? apiRes.getData() : List.of();
+        if (members.isEmpty()) return;
+
+        LocalDate today = LocalDate.now();
+        YearMonth currentYm = YearMonth.from(today);
+        int totalLedgers = 0;
+        int totalPayrolls = 0;
+        int skipped = 0;
+        int failed = 0;
+
+        for (MemberResDto member : members) {
+            if (member.getJoinDate() == null) continue;
+            YearMonth start = YearMonth.from(member.getJoinDate());
+            // 마지막 시드 월 - 지난달까지 (이번달은 아직 진행중이라 정산 X)
+            YearMonth end = currentYm.minusMonths(1);
+
+            for (YearMonth ym = start; !ym.isAfter(end); ym = ym.plusMonths(1)) {
+                // 1) Ledger 시드
+                String ymStr = ym.toString();
+                if (ledgerRepository.findByMemberIdAndLedgerYearMonth(member.getMemberId(), ymStr).isEmpty()) {
+                    seedLedger(member.getMemberId(), companyId, ym);
+                    totalLedgers++;
+                }
+
+                // 2) Payroll 시드 - 회사 cycleType 따라 지급일 산출
+                LocalDate payDate = resolvePayDate(ym, cycleType, payDay);
+                if (payDate.isAfter(today)) continue; // 미래 지급일 skip
+
+                if (payrollRepository.findByCompanyIdAndMemberIdAndPayrollYearMonthDay(
+                        companyId, member.getMemberId(), payDate).isPresent()) {
+                    skipped++;
+                    continue;
+                }
+
+                try {
+                    var created = payrollService.createPayroll(companyId,
+                            PayrollCreateReqDto.builder()
+                                    .memberId(member.getMemberId())
+                                    .payrollYearMonthDay(payDate)
+                                    .payrollType(PayrollType.REGULAR_MONTHLY)
+                                    .build());
+                    totalPayrolls++;
+
+                    // 과거 시드 데이터 의미 살리기 - 입사일 ~ 지난달까지 모두 PAID
+                    // (실제 시점이 payDay 지난 후 = 지급 완료가 자연스러움)
+                    // seedCompany 가 @Transactional 가 아니라 findById 로 받은 엔티티는 detached 상태
+                    // -> dirty checking 미동작 -> save 명시 호출로 PAID 전이 commit
+                    // pay() 가 paidAt = LocalDate.now() 로 세팅하므로
+                    // 시드 데이터 의미상 실제 지급일(payrollYearMonthDay) 로 덮어씀
+                    final LocalDate paidDate = payDate;
+                    payrollRepository.findById(created.getPayrollId()).ifPresent(p -> {
+                        p.confirm();
+                        p.pay();
+                        p.overridePaidAt(paidDate);
+                        payrollRepository.save(p);
+                    });
+                } catch (Exception e) {
+                    failed++;
+                    log.warn("[DEMO-SEED] Payroll 시드 실패 memberId={} payDate={} - {}",
+                            member.getMemberId(), payDate, e.getMessage());
+                }
+            }
+        }
+        log.info("[DEMO-SEED] 월별 시드 결과 - Ledger 신규 {} / Payroll 신규 {} / skip {} / fail {}",
+                totalLedgers, totalPayrolls, skipped, failed);
+    }
+
+    /**
+     * 회사 cycleType 따라 정산 대상 월 -> 지급일 산출
+     * - CURRENT_MONTH: 해당 월 payDay
+     * - PREVIOUS_MONTH: 다음 월 payDay (말일 경계 보정)
+     */
+    private LocalDate resolvePayDate(YearMonth targetYm, PayCycleType cycleType, int payDay) {
+        YearMonth payMonth = (cycleType == PayCycleType.PREVIOUS_MONTH)
+                ? targetYm.plusMonths(1)
+                : targetYm;
+        int day = Math.min(payDay, payMonth.lengthOfMonth());
+        return payMonth.atDay(day);
+    }
+
+    /**
+     * 직원별 정상 근무 가정 Ledger 1건 생성
+     * - 매 3개월마다 OT 5시간 추가 (12개월 환산 다양성 확보)
+     */
+    private void seedLedger(UUID memberId, UUID companyId, YearMonth ym) {
+        int regular = 209 * 60;                                           // 12540분 표준
+        int overtime = (ym.getMonthValue() % 3 == 0) ? 5 * 60 : 0;        // 매 3개월마다 5h OT
+        int total = regular + overtime;
+
+        MonthlyAttendanceLedger ledger = MonthlyAttendanceLedger.builder()
+                .memberId(memberId)
+                .companyId(companyId)
+                .ledgerYearMonth(ym.toString())
+                .totalWorkedMinutes(total)
+                .regularMinutes(regular)
+                .overtimeMinutes(overtime)
+                .nightMinutes(0)
+                .holidayMinutes(0)
+                .leaveMinutes(0)
+                .lateMinutes(0)
+                .earlyLeaveMinutes(0)
+                .absentDays(0)
+                .closedAt(ym.atEndOfMonth().atTime(2, 0))
+                .closedBy(SYSTEM_ACTOR)
+                .isLocked(false)
+                .build();
+        ledgerRepository.save(ledger);
+    }
+
+    /**
+     * 회사 직원 list -> 직원별 Salary + 일부 직원에 MemberAllowance 시드
+     *
+     * Salary 결정:
+     *  - 입사일 = effectiveFrom
+     *  - 호봉제: step 1~6 (입사 순서대로) - baseSalary 는 PayGradeTable 에서 자동 (시드는 step 만)
+     *    실제 PayrollService 가 baseSalary 를 사용할 때 호봉표 lookup 안 함 - Salary.baseSalary 직접 보므로
+     *    호봉제도 baseSalary 명시 필요 (PayGradeTable 의 250만 + (step-1) * 50만 패턴 일치)
+     *  - 연봉제: 입사 기간별 차등 (장기근속 ↑)
+     *
+     * 부양가족수 / 자녀수 다양화 - 소득세 간이세액 룩업 검증용
+     *
+     * MemberAllowance:
+     *  - i=0 팀장 (24개월) -> 직책수당 30만 (회사 4 / 회사 5)
+     *  - i=3 팀장 (9개월)  -> 직책수당 30만
+     *  - i=2 (12개월) -> 자녀수당 10만 × 2명
+     */
+    private void seedEmployees(UUID companyId, UUID salaryPolicyId, boolean usePayGrade) {
+        ApiResponse<List<MemberResDto>> apiRes;
+        try {
+            apiRes = memberFeignClient.getMembersByCompany(companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 직원 list 조회 실패 companyId={} - {}", companyId, e.getMessage());
+            return;
+        }
+        List<MemberResDto> members = apiRes != null ? apiRes.getData() : null;
+        if (members == null || members.isEmpty()) {
+            log.warn("[DEMO-SEED] 직원 없음 companyId={}", companyId);
+            return;
+        }
+
+        // SalaryItemTemplate 조회 - 직책수당 / 자녀수당 templateId 매칭
+        UUID positionAllowanceTplId = findTemplateId(companyId, "직책수당");
+        UUID childAllowanceTplId = findTemplateId(companyId, "자녀수당");
+
+        // 입사일 빠른 순으로 정렬 (장기근속 i=0)
+        List<MemberResDto> sorted = members.stream()
+                .filter(m -> m.getJoinDate() != null)
+                .sorted((a, b) -> a.getJoinDate().compareTo(b.getJoinDate()))
+                .toList();
+
+        // 직원별 baseSalary / 부양가족 셋업 (인덱스 기반 다양화)
+        long[] yearlySalaryByIdx = { 5_000_000L, 4_500_000L, 4_000_000L, 3_500_000L, 3_000_000L, 2_500_000L };
+        int[] dependentByIdx = { 3, 2, 4, 1, 2, 1 };
+        int[] childByIdx = { 1, 0, 2, 0, 1, 0 };
+
+        for (int i = 0; i < sorted.size(); i++) {
+            MemberResDto member = sorted.get(i);
+            // 이미 시드된 Salary 있으면 skip (멱등)
+            boolean alreadyExists = salaryRepository
+                    .findActiveSalary(member.getMemberId(), companyId, LocalDate.now())
+                    .isPresent();
+            if (alreadyExists) {
+                log.info("[DEMO-SEED] Salary 이미 있음 skip memberId={}", member.getMemberId());
+                continue;
+            }
+
+            int idx = Math.min(i, yearlySalaryByIdx.length - 1);
+            long baseSalary = yearlySalaryByIdx[idx];
+            Integer step = usePayGrade ? Math.min(i + 1, 6) : null; // 호봉제는 1~6호봉
+            // 호봉제면 PayGradeTable 매칭 baseSalary (250만 + (step-1) × 50만)
+            if (usePayGrade && step != null) {
+                baseSalary = 2_500_000L + 500_000L * (step - 1);
+            }
+
+            Salary salary = Salary.builder()
+                    .memberId(member.getMemberId())
+                    .companyId(companyId)
+                    .salaryPolicyId(salaryPolicyId)
+                    .step(step)
+                    .baseSalary(baseSalary)
+                    .jobGradeName(member.getJobGradeName())
+                    .jobTitleName(member.getJobTitleName())
+                    .effectiveFrom(member.getJoinDate())
+                    .dependentCount(dependentByIdx[idx])
+                    .childUnder20Count(childByIdx[idx])
+                    .taxReductionType(TaxReductionType.NONE)
+                    .taxReductionRate(BigDecimal.ZERO)
+                    .build();
+            salaryRepository.save(salary);
+
+            // 직책수당 - 팀장 (i=0, i=3)
+            if ((i == 0 || i == 3) && positionAllowanceTplId != null) {
+                saveAllowance(companyId, member.getMemberId(), positionAllowanceTplId,
+                        300_000L, member.getJoinDate(), "데모 시드 - 팀장 직책수당");
+            }
+            // 자녀수당 - i=2 (자녀 2명)
+            if (i == 2 && childAllowanceTplId != null) {
+                saveAllowance(companyId, member.getMemberId(), childAllowanceTplId,
+                        200_000L, member.getJoinDate(), "데모 시드 - 자녀 2명 수당");
+            }
+        }
+        log.info("[DEMO-SEED] 직원 Salary + Allowance 시드 완료 companyId={} 직원={}",
+                companyId, sorted.size());
+    }
+
+    private UUID findTemplateId(UUID companyId, String itemName) {
+        return salaryItemTemplateRepository
+                .findByCompanyIdAndItemNameAndDelYn(companyId, itemName, "N")
+                .map(SalaryItemTemplate::getSalaryItemTemplateId)
+                .orElse(null);
+    }
+
+    private void saveAllowance(UUID companyId, UUID memberId, UUID templateId,
+                                long amount, LocalDate effectiveFrom, String reason) {
+        MemberAllowance allowance = MemberAllowance.builder()
+                .memberId(memberId)
+                .companyId(companyId)
+                .salaryItemTemplateId(templateId)
+                .amount(amount)
+                .effectiveFrom(effectiveFrom)
+                .approvalStatus(AllowanceApprovalStatus.AUTO) // 시스템 자동 세팅 (결재 생략)
+                .reason(reason)
+                .requestedBy(SYSTEM_ACTOR)
+                .requestedAt(LocalDateTime.now())
+                .decidedBy(SYSTEM_ACTOR)
+                .decidedAt(LocalDateTime.now())
+                .build();
+        memberAllowanceRepository.save(allowance);
+    }
+
+    /**
+     * 직원별 ANNUAL 연차 잔여 시드 - 입사 기간별 차등 부여 + 일부 사용 처리
+     *
+     * 한국 근로기준법:
+     *  - 입사 1년 미만: 매월 만근당 1일 (최대 11일)
+     *  - 입사 1년 이상: 15일 (3년차마다 +1, 최대 25일)
+     *
+     * 시드 패턴 (단순화):
+     *  - 24개월 이상 (장기근속): 16일 부여 / 7일 사용 / 잔여 9일
+     *  - 12-24개월 (1년 이상):   15일 부여 / 5일 사용 / 잔여 10일
+     *  - 6-12개월 (1년 미만):     8일 부여 / 2일 사용 / 잔여 6일
+     *  - 3-6개월:                4일 부여 / 1일 사용 / 잔여 3일
+     *  - 0-3개월 (신규):          2일 부여 / 0일 사용 / 잔여 2일
+     *
+     * 멱등 - 직원의 활성 ANNUAL 잔액 1건이라도 있으면 skip
+     */
+    private void seedMemberBalances(UUID companyId) {
+        ApiResponse<List<MemberResDto>> apiRes;
+        try {
+            apiRes = memberFeignClient.getMembersByCompany(companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 직원 list 조회 실패 (MemberBalance) - {}", e.getMessage());
+            return;
+        }
+        List<MemberResDto> members = apiRes != null ? apiRes.getData() : List.of();
+        if (members.isEmpty()) return;
+
+        LocalDate today = LocalDate.now();
+        int created = 0;
+        int skipped = 0;
+        for (MemberResDto m : members) {
+            if (m.getJoinDate() == null) continue;
+            // 멱등 체크 - 활성 ANNUAL 잔액 있으면 skip
+            if (memberBalanceRepository
+                    .findAnnualBalance(companyId, m.getMemberId()).isPresent()) {
+                skipped++;
+                continue;
+            }
+            long monthsServed = ChronoUnit.MONTHS.between(m.getJoinDate(), today);
+            double granted;
+            double used;
+            if (monthsServed >= 24) {
+                granted = 16.0; used = 7.0;
+            } else if (monthsServed >= 12) {
+                granted = 15.0; used = 5.0;
+            } else if (monthsServed >= 6) {
+                granted = 8.0; used = 2.0;
+            } else if (monthsServed >= 3) {
+                granted = 4.0; used = 1.0;
+            } else {
+                granted = 2.0; used = 0.0;
+            }
+            // 만료일 - 회계연도 1년 (단순화) - 입사일+1년 또는 today+1년 중 큰 값
+            LocalDate expiration = today.plusYears(1);
+            MemberBalance balance = MemberBalance.builder()
+                    .memberId(m.getMemberId())
+                    .companyId(companyId)
+                    .balanceType(BalanceType.ANNUAL)
+                    .totalGranted(granted)
+                    .totalUsed(used)
+                    .remaining(granted - used)
+                    .expirationDate(expiration)
+                    .isUsableYn("Y")
+                    .isExpireYn("N")
+                    .carryoverConsentYn("N")
+                    .delYn("N")
+                    .build();
+            memberBalanceRepository.save(balance);
+            created++;
+        }
+        log.info("[DEMO-SEED] MemberBalance(ANNUAL) 시드 - 생성={} skip={} companyId={}",
+                created, skipped, companyId);
+    }
+
+    /**
+     * 직원별 일별 출퇴근 시드 - 입사일 ~ 어제까지 평일 (월~금)
+     *
+     * 직원 인덱스별 근무 패턴:
+     *  i=0 (장기근속/팀장): 09:00 출근 / 18:00 퇴근 (표준 8시간)
+     *  i=1 : 09:00 / 18:00 + 화/목 19:00 (주 2일 OT 1시간 = 주 2시간)
+     *  i=2 : 09:00 / 19:30 (매일 +1.5시간 OT = 주 7.5시간)
+     *  i=3 (팀장 - 주 52시간 풀): 09:00 / 20:30 매일 (일 11.5시간 = 주 12시간 OT, 점심 1시간 제외 후 일 10.5시간 근무 + 1.5h OT - 주 7.5h 정도)
+     *       정확히 주 52시간 (40 + 12) 채우려면 매일 09:00 출근 / 20:30 퇴근 (휴게 1시간 차감 = 일 10.5시간, 주 52.5)
+     *  i=4 : 09:00 / 18:00 표준
+     *  i=5 (신규): 09:00 / 18:30 (일 0.5h OT = 주 2.5h)
+     *
+     * 휴게시간 1시간 (12-13시 점심) 가정
+     * 주말은 출퇴근 기록 없음
+     *
+     * 멱등: 같은 (memberId, attendanceDate) 있으면 skip
+     */
+    /**
+     * 회사 공휴일 자동 import - 법정 공휴일을 직전 3년 + 올해 + 내년까지 가져와 CompanyHoliday 에 채움.
+     * daily 시드에서 holidaySet 으로 휴일 skip 하기 위해 daily 시드보다 먼저 호출.
+     * 멱등: refreshLegalHolidays 가 해당 연도의 isLegalYn=Y 만 삭제 후 재삽입, 사용자 등록 휴일은 보존.
+     */
+    private void seedCompanyHolidays(UUID companyId) {
+        log.info("[DEMO-SEED] >>> seedCompanyHolidays 시작 companyId={}", companyId);
+        int currentYear = LocalDate.now().getYear();
+        int total = 0;
+        for (int year = currentYear - 3; year <= currentYear + 1; year++) {
+            try {
+                int imported = companyHolidayService.refreshLegalHolidays(companyId, year);
+                total += imported;
+                log.info("[DEMO-SEED]   - {}년 외부 API import 결과 = {}건", year, imported);
+            } catch (Exception e) {
+                log.warn("[DEMO-SEED]   - {}년 외부 API 실패 - {} (fallback 적용)", year, e.getMessage());
+            }
+        }
+        // 외부 API 실패 또는 0건일 때 fallback - 핵심 한국 공휴일 하드코딩 (시연 안정성)
+        int existingCount = companyHolidayRepository
+                .findByCompanyIdAndDelYnOrderByHolidayDate(companyId, "N").size();
+        log.info("[DEMO-SEED] 외부 API import 후 CompanyHoliday DB 수 = {}", existingCount);
+        if (existingCount == 0) {
+            log.warn("[DEMO-SEED] 외부 API 가 모두 실패 - 핵심 한국 공휴일 fallback 시드 적용");
+            int fallback = seedFallbackKoreanHolidays(companyId, currentYear);
+            log.info("[DEMO-SEED] fallback 공휴일 {}건 시드 완료", fallback);
+            total += fallback;
+        }
+        log.info("[DEMO-SEED] <<< seedCompanyHolidays 완료 companyId={} 총={}건", companyId, total);
+    }
+
+    /** 외부 공공 API 가 실패할 때 fallback - 직전 3년 + 올해 + 내년의 핵심 한국 공휴일을 하드코딩 시드 */
+    private int seedFallbackKoreanHolidays(UUID companyId, int currentYear) {
+        // 양력 고정 공휴일만 (음력 설/추석은 매년 다르므로 외부 API 의존)
+        // 양력 고정: 1/1 신정, 3/1 삼일절, 5/1 노동절, 5/5 어린이날, 6/6 현충일,
+        //          8/15 광복절, 10/3 개천절, 10/9 한글날, 12/25 성탄절
+        Object[][] fixed = new Object[][] {
+                {1, 1, "신정"},
+                {3, 1, "삼일절"},
+                {5, 1, "노동절"},
+                {5, 5, "어린이날"},
+                {6, 6, "현충일"},
+                {8, 15, "광복절"},
+                {10, 3, "개천절"},
+                {10, 9, "한글날"},
+                {12, 25, "성탄절"},
+        };
+        int created = 0;
+        for (int year = currentYear - 3; year <= currentYear + 1; year++) {
+            for (Object[] f : fixed) {
+                int month = (int) f[0];
+                int day = (int) f[1];
+                String name = (String) f[2];
+                LocalDate date = LocalDate.of(year, month, day);
+                // 멱등 - 같은 날짜·이름 이미 있으면 skip
+                boolean exists = companyHolidayRepository
+                        .findByCompanyIdAndDelYnOrderByHolidayDate(companyId, "N")
+                        .stream()
+                        .anyMatch(h -> date.equals(h.getHolidayDate()));
+                if (exists) continue;
+                companyHolidayRepository.save(
+                        CompanyHoliday.builder()
+                                .companyId(companyId)
+                                .holidayDate(date)
+                                .holidayName(name)
+                                .isPaidYn("Y")
+                                .isLegalYn("Y")
+                                .build());
+                created++;
+            }
+        }
+        return created;
+    }
+
+    private void seedDailyAttendance(UUID companyId) {
+        ApiResponse<List<MemberResDto>> apiRes;
+        try {
+            apiRes = memberFeignClient.getMembersByCompany(companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 직원 list 조회 실패 (DailyAttendance) - {}", e.getMessage());
+            return;
+        }
+        List<MemberResDto> members = apiRes != null ? apiRes.getData() : List.of();
+        if (members.isEmpty()) return;
+
+        // 입사일 빠른 순으로 정렬 - 인덱스로 패턴 분기 일관 유지
+        List<MemberResDto> sorted = members.stream()
+                .filter(m -> m.getJoinDate() != null)
+                .sorted((a, b) -> a.getJoinDate().compareTo(b.getJoinDate()))
+                .toList();
+
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        int totalCreated = 0;
+        int totalSkipped = 0;
+
+        // 공휴일 set - 시드에서 휴일에는 근무 데이터 안 만듦 (정상 휴무 시뮬)
+        Set<LocalDate> holidaySet = companyHolidayRepository
+                .findByCompanyIdAndDelYnOrderByHolidayDate(companyId, "N")
+                .stream()
+                .map(h -> h.getHolidayDate())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        // 휴가 종류 매핑 - LEAVE -> ANNUAL, HALF -> HALF_PM (없으면 LeaveRequest 생성 skip)
+        UUID annualTypeId = companyLeaveTypeRepository
+                .findByCompanyIdAndCode(companyId, "ANNUAL")
+                .map(CompanyLeaveType::getCompanyLeaveTypeId)
+                .orElse(null);
+        UUID halfPmTypeId = companyLeaveTypeRepository
+                .findByCompanyIdAndCode(companyId, "HALF_PM")
+                .map(CompanyLeaveType::getCompanyLeaveTypeId)
+                .orElse(null);
+        log.info("[DEMO-SEED] >>> seedDailyAttendance 시작 companyId={} 직원={}명 holidaySet={}건 annualTypeId={} halfPmTypeId={}",
+                companyId, sorted.size(), holidaySet.size(), annualTypeId, halfPmTypeId);
+
+        for (int i = 0; i < sorted.size(); i++) {
+            MemberResDto member = sorted.get(i);
+            int idx = Math.min(i, 5);
+            // 직원별 출/퇴근 시간 분기 (24시간 기준)
+            // {clockIn시, clockIn분, clockOut시, clockOut분, 화목추가OT여부}
+            int clockInH, clockInM, clockOutH, clockOutM;
+            boolean tueThuExtra = false;
+            switch (idx) {
+                case 0 -> { clockInH = 9; clockInM = 0; clockOutH = 18; clockOutM = 0; }
+                case 1 -> { clockInH = 9; clockInM = 0; clockOutH = 18; clockOutM = 0; tueThuExtra = true; }
+                case 2 -> { clockInH = 9; clockInM = 0; clockOutH = 19; clockOutM = 30; }
+                case 3 -> { clockInH = 9; clockInM = 0; clockOutH = 20; clockOutM = 30; }  // 주 52시간 풀
+                case 4 -> { clockInH = 9; clockInM = 0; clockOutH = 18; clockOutM = 0; }
+                default -> { clockInH = 9; clockInM = 0; clockOutH = 18; clockOutM = 30; }
+            }
+
+            int memberCreated = 0;
+            int memberSkipped = 0;
+            for (LocalDate d = member.getJoinDate(); !d.isAfter(yesterday); d = d.plusDays(1)) {
+                int dow = d.getDayOfWeek().getValue(); // 1=월 ~ 7=일
+                if (dow == 6 || dow == 7) continue; // 토/일 skip
+                if (holidaySet.contains(d)) continue; // 공휴일 skip - 정상 휴무 시뮬
+
+                // 멱등 체크 - 기존 DailyAttendance 가 LEAVE/HALF 면 LeaveRequest 백필 (한 번만 실행)
+                var existingDaily = dailyAttendanceRepository
+                        .findByMemberIdAndAttendanceDate(member.getMemberId(), d);
+                if (existingDaily.isPresent()) {
+                    AttendanceStatus existingStatus = existingDaily.get().getStatus();
+                    UUID typeId = existingStatus == AttendanceStatus.LEAVE ? annualTypeId
+                            : existingStatus == AttendanceStatus.HALF ? halfPmTypeId : null;
+                    if (typeId != null
+                            && leaveRequestRepository
+                                    .findAllByMemberIdAndStartDateAndDelYn(member.getMemberId(), d, "N")
+                                    .isEmpty()) {
+                        double usage = existingStatus == AttendanceStatus.LEAVE ? 1.0 : 0.5;
+                        String reason = existingStatus == AttendanceStatus.LEAVE
+                                ? "연차 사용 (시드 백필)"
+                                : "오후 반차 사용 (시드 백필)";
+                        leaveRequestRepository.save(LeaveRequest.builder()
+                                .memberId(member.getMemberId())
+                                .companyId(companyId)
+                                .companyLeaveTypeId(typeId)
+                                .startDate(d)
+                                .endDate(d)
+                                .usageDays(usage)
+                                .deductedBalanceType(BalanceType.ANNUAL)
+                                .reason(reason)
+                                .approvalStatus(LeaveApprovalStatus.APPROVED)
+                                .requestedBy(member.getMemberId())
+                                .requestedAt(d.minusDays(7).atTime(10, 0))
+                                .decidedBy(SYSTEM_ACTOR)
+                                .decidedAt(d.minusDays(5).atTime(15, 0))
+                                .initiator(LeaveInitiator.SELF)
+                                .build());
+                    }
+                    memberSkipped++;
+                    continue;
+                }
+
+                // 매월 특정일 - 직원 인덱스 따라 휴가/출장/외근/반차 패턴 분기
+                // 시연용 다양화: 매월 한두 날에 직원 i 별로 다른 status 적용
+                AttendanceStatus specialStatus = null;
+                WorkTripType specialTripType = null;
+                int dayOfMonth = d.getDayOfMonth();
+                int monthVal = d.getMonthValue();
+
+                // 직원 인덱스 + 월 모듈로 분기 - 월별 직원별 1회씩
+                // 매월 (i+5)일에 해당 직원 특수 근태 (평일이면)
+                int memberSpecialDay = 5 + idx; // i=0 -> 5일, i=1 -> 6일, ... i=5 -> 10일
+                if (dayOfMonth == memberSpecialDay) {
+                    // 짝수월 vs 홀수월로 다양화
+                    if (monthVal % 4 == idx % 4) {
+                        // 매 4개월마다 - 휴가/반차/출장/외근 순환
+                        switch (idx % 4) {
+                            case 0 -> specialStatus = AttendanceStatus.LEAVE;       // 연차
+                            case 1 -> specialTripType = WorkTripType.BUSINESS_TRIP; // 출장
+                            case 2 -> specialStatus = AttendanceStatus.HALF;        // 반차
+                            case 3 -> specialTripType = WorkTripType.OUTSIDE_WORK;  // 외근
+                        }
+                    }
+                }
+                // 추가: 매 분기 마지막 달 20일 - 직원 i=2,3 출장 (중간 직급은 분기 출장 자주)
+                if ((monthVal == 3 || monthVal == 6 || monthVal == 9 || monthVal == 12)
+                        && dayOfMonth == 20 && (idx == 2 || idx == 3)) {
+                    specialTripType = WorkTripType.BUSINESS_TRIP;
+                }
+                // 화/목 추가 OT 1시간 (i=1)
+                int outH = clockOutH;
+                int outM = clockOutM;
+                if (tueThuExtra && (dow == 2 || dow == 4)) {
+                    outH = 19;
+                    outM = 0;
+                }
+
+                LocalDateTime clockIn;
+                LocalDateTime clockOut;
+                int worked;
+                int overtime;
+                AttendanceStatus statusToSet = AttendanceStatus.NORMAL;
+
+                if (specialStatus == AttendanceStatus.LEAVE) {
+                    // 종일 휴가 - 출퇴근 기록 없음
+                    clockIn = null;
+                    clockOut = null;
+                    worked = 0;
+                    overtime = 0;
+                    statusToSet = AttendanceStatus.LEAVE;
+                } else if (specialStatus == AttendanceStatus.HALF) {
+                    // 반차 (오후) - 09:00~13:00 4시간 근무
+                    clockIn = d.atTime(9, 0);
+                    clockOut = d.atTime(13, 0);
+                    worked = 4 * 60;
+                    overtime = 0;
+                    statusToSet = AttendanceStatus.HALF;
+                } else {
+                    // 정상 또는 출장/외근 - 출퇴근 기록 있음 (출장 시 기본 스케줄 사용)
+                    clockIn = d.atTime(clockInH, clockInM);
+                    clockOut = d.atTime(outH, outM);
+                    int totalMinutes = (int) java.time.Duration.between(clockIn, clockOut).toMinutes();
+                    int breakMinutes = 60; // 점심 1시간
+                    worked = Math.max(0, totalMinutes - breakMinutes);
+                    int scheduleMinutes = 8 * 60; // 표준 8시간
+                    overtime = Math.max(0, worked - scheduleMinutes);
+                    statusToSet = AttendanceStatus.NORMAL;
+                }
+
+                DailyAttendance daily = DailyAttendance.builder()
+                        .memberId(member.getMemberId())
+                        .companyId(companyId)
+                        .attendanceDate(d)
+                        .status(statusToSet)
+                        .closureStatus(ClosureStatus.FINALIZED)
+                        .firstClockIn(clockIn)
+                        .lastClockOut(clockOut)
+                        .workedMinutes(worked)
+                        .overtimeMinutes(overtime)
+                        .earlyLeaveExcusedYn("N")
+                        .build();
+                DailyAttendance savedDaily = dailyAttendanceRepository.save(daily);
+
+                // 출/퇴근 로그 - LEAVE (clockIn null) 가 아닌 경우에만 저장
+                if (clockIn != null && clockOut != null) {
+                    AttendanceLog logIn = AttendanceLog.builder()
+                            .dailyAttendance(savedDaily)
+                            .memberId(member.getMemberId())
+                            .eventType(EventType.CLOCK_IN)
+                            .eventTime(clockIn)
+                            .sourceType(SourceType.WEB)
+                            .isCorrectedYn("N")
+                            .build();
+                    attendanceLogRepository.save(logIn);
+
+                    AttendanceLog logOut = AttendanceLog.builder()
+                            .dailyAttendance(savedDaily)
+                            .memberId(member.getMemberId())
+                            .eventType(EventType.CLOCK_OUT)
+                            .eventTime(clockOut)
+                            .sourceType(SourceType.WEB)
+                            .isCorrectedYn("N")
+                            .build();
+                    attendanceLogRepository.save(logOut);
+                }
+
+                // 연차/반차 - LeaveRequest 시드 (이미 있으면 skip)
+                if (specialStatus == AttendanceStatus.LEAVE || specialStatus == AttendanceStatus.HALF) {
+                    UUID typeId = specialStatus == AttendanceStatus.LEAVE ? annualTypeId : halfPmTypeId;
+                    if (typeId != null) {
+                        boolean alreadyHas = !leaveRequestRepository
+                                .findAllByMemberIdAndStartDateAndDelYn(member.getMemberId(), d, "N")
+                                .isEmpty();
+                        if (!alreadyHas) {
+                            double usage = specialStatus == AttendanceStatus.LEAVE ? 1.0 : 0.5;
+                            String reason = specialStatus == AttendanceStatus.LEAVE
+                                    ? "연차 사용 (시드)"
+                                    : "오후 반차 사용 (시드)";
+                            LocalDateTime requestedAt = d.minusDays(7).atTime(10, 0);
+                            LocalDateTime decidedAt = d.minusDays(5).atTime(15, 0);
+                            LeaveRequest lr = LeaveRequest.builder()
+                                    .memberId(member.getMemberId())
+                                    .companyId(companyId)
+                                    .companyLeaveTypeId(typeId)
+                                    .startDate(d)
+                                    .endDate(d)
+                                    .usageDays(usage)
+                                    .deductedBalanceType(BalanceType.ANNUAL)
+                                    .reason(reason)
+                                    .approvalStatus(LeaveApprovalStatus.APPROVED)
+                                    .requestedBy(member.getMemberId())
+                                    .requestedAt(requestedAt)
+                                    .decidedBy(SYSTEM_ACTOR)
+                                    .decidedAt(decidedAt)
+                                    .initiator(LeaveInitiator.SELF)
+                                    .build();
+                            leaveRequestRepository.save(lr);
+                        }
+                    }
+                }
+
+                // 출장/외근 - WorkTripDetail 추가 저장
+                if (specialTripType != null) {
+                    String dest = specialTripType == WorkTripType.BUSINESS_TRIP ? "부산 사업장" : "강남 거래처";
+                    String purp = specialTripType == WorkTripType.BUSINESS_TRIP ? "분기 출장" : "고객사 외근";
+                    WorkTripDetail trip = WorkTripDetail.builder()
+                            .memberId(member.getMemberId())
+                            .companyId(companyId)
+                            .workTripType(specialTripType)
+                            .destination(dest)
+                            .purpose(purp)
+                            .dailyAttendance(savedDaily)
+                            .delYn("N")
+                            .build();
+                    workTripDetailRepository.save(trip);
+                }
+
+                memberCreated++;
+            }
+            totalCreated += memberCreated;
+            totalSkipped += memberSkipped;
+            log.info("[DEMO-SEED] DailyAttendance 직원 시드 - memberId={} idx={} 생성={} skip={}",
+                    member.getMemberId(), idx, memberCreated, memberSkipped);
+        }
+        log.info("[DEMO-SEED] DailyAttendance 시드 완료 companyId={} 총생성={} 총skip={}",
+                companyId, totalCreated, totalSkipped);
+    }
+
+    /**
+     * 회사 표준 LeavePolicy 1건 - 디폴트 값 (회계연도 기준 / 15일 / 매 2년 +1일 / 25일 cap)
+     * 멱등 - 회사에 활성 정책 있으면 skip
+     */
+    private void seedLeavePolicy(UUID companyId, LocalDate effectiveFrom) {
+        boolean exists = !leavePolicyRepository.findByCompanyIdAndDelYn(companyId, "N").isEmpty();
+        if (exists) {
+            log.info("[DEMO-SEED] LeavePolicy 이미 있음 - skip companyId={}", companyId);
+            return;
+        }
+        LeavePolicy policy = LeavePolicy.builder()
+                .companyId(companyId)
+                .isPromotionYn("N")
+                .isCarryoverYn("N")
+                .isCarryoverConsentYn("N")
+                .isPayoutYn("N")
+                .defaultAnnualDays(15.0)
+                .extraDaysPerInterval(1.0)
+                .extraIntervalYears(2)
+                .maxAnnualDays(25.0)
+                .accrualBase(AccrualBase.FISCAL)
+                .build();
+        leavePolicyRepository.save(policy);
+        log.info("[DEMO-SEED] LeavePolicy 시드 완료 effectiveFrom={}", effectiveFrom);
+    }
+
+    /**
+     * 회사 근무 스케줄 시드
+     * - flexible=false : FIXED 9-18 / 12-13 점심 / 일 8h
+     * - flexible=true  : FLEXIBLE + 시차출퇴근 슬롯 3개 (EARLY/STANDARD/LATE)
+     * 멱등 - 회사에 활성 WorkSchedule 있으면 skip
+     */
+    private void seedWorkSchedule(UUID companyId, java.time.LocalDate effectiveFrom, boolean flexible) {
+        boolean exists = workScheduleRepository.findByCompanyIdAndDelYn(companyId, "N")
+                .stream()
+                .anyMatch(ws -> ws.getMemberId() == null);
+        if (exists) {
+            log.info("[DEMO-SEED] WorkSchedule 이미 있음 - skip companyId={}", companyId);
+            return;
+        }
+        if (!flexible) {
+            // FIXED 9-18, 점심 12-13, 일 8h(=480분)
+            WorkSchedule fixed = WorkSchedule.builder()
+                    .companyId(companyId)
+                    .memberId(null)
+                    .scheduleName("기본 근무 (고정)")
+                    .workType(WorkType.FIXED)
+                    .startTime(java.time.LocalTime.of(9, 0))
+                    .endTime(java.time.LocalTime.of(18, 0))
+                    .workMinutes(480)
+                    .breakStart(java.time.LocalTime.of(12, 0))
+                    .breakEnd(java.time.LocalTime.of(13, 0))
+                    .effectiveFrom(effectiveFrom)
+                    .build();
+            workScheduleRepository.save(fixed);
+            log.info("[DEMO-SEED] WorkSchedule FIXED 시드 완료 companyId={}", companyId);
+            return;
+        }
+
+        // FLEXIBLE 1개 + 슬롯 3개
+        WorkSchedule flex = workScheduleRepository.save(WorkSchedule.builder()
+                .companyId(companyId)
+                .memberId(null)
+                .scheduleName("시차출퇴근제")
+                .workType(WorkType.FLEXIBLE)
+                .selectionDeadlineDay(25)
+                .effectiveFrom(effectiveFrom)
+                .build());
+
+        // EARLY 07:00 - 16:00, 점심 11:00-12:00 (8h=480분)
+        flexibleTimeSlotRepository.save(FlexibleTimeSlot.builder()
+                .workScheduleId(flex.getWorkScheduleId())
+                .companyId(companyId)
+                .slotCode("EARLY")
+                .slotLabel("조기 출근 (07:00 - 16:00)")
+                .startTime(java.time.LocalTime.of(7, 0))
+                .endTime(java.time.LocalTime.of(16, 0))
+                .workMinutes(480)
+                .breakStart(java.time.LocalTime.of(11, 0))
+                .breakEnd(java.time.LocalTime.of(12, 0))
+                .isDefault(false)
+                .activeYn("Y")
+                .build());
+
+        // STANDARD 09:00 - 18:00, 점심 12:00-13:00 (8h=480분) - 기본
+        flexibleTimeSlotRepository.save(FlexibleTimeSlot.builder()
+                .workScheduleId(flex.getWorkScheduleId())
+                .companyId(companyId)
+                .slotCode("STANDARD")
+                .slotLabel("표준 (09:00 - 18:00)")
+                .startTime(java.time.LocalTime.of(9, 0))
+                .endTime(java.time.LocalTime.of(18, 0))
+                .workMinutes(480)
+                .breakStart(java.time.LocalTime.of(12, 0))
+                .breakEnd(java.time.LocalTime.of(13, 0))
+                .isDefault(true)
+                .activeYn("Y")
+                .build());
+
+        // LATE 11:00 - 20:00, 점심 13:00-14:00 (8h=480분)
+        FlexibleTimeSlot lateSlot = flexibleTimeSlotRepository.save(FlexibleTimeSlot.builder()
+                .workScheduleId(flex.getWorkScheduleId())
+                .companyId(companyId)
+                .slotCode("LATE")
+                .slotLabel("늦은 출근 (11:00 - 20:00)")
+                .startTime(java.time.LocalTime.of(11, 0))
+                .endTime(java.time.LocalTime.of(20, 0))
+                .workMinutes(480)
+                .breakStart(java.time.LocalTime.of(13, 0))
+                .breakEnd(java.time.LocalTime.of(14, 0))
+                .isDefault(false)
+                .activeYn("Y")
+                .build());
+
+        log.info("[DEMO-SEED] WorkSchedule FLEXIBLE + 슬롯 3개 시드 완료 companyId={}", companyId);
+
+        // 직원별 슬롯 분배 - idx % 3 -> EARLY/STANDARD/LATE 순환
+        // 입사월부터 이번 달까지 매월 MemberScheduleSelection AUTO 상태 시드
+        seedFlexibleSlotSelections(companyId, lateSlot);
+    }
+
+    /**
+     * demo-prev (FLEXIBLE) 직원들에게 시차출퇴근 슬롯 round-robin 분배
+     * 입사일 ~ 이번 달까지 매월 MemberScheduleSelection AUTO 상태로 멱등 생성
+     */
+    private void seedFlexibleSlotSelections(UUID companyId, FlexibleTimeSlot fallbackSlot) {
+        ApiResponse<List<MemberResDto>> apiRes;
+        try {
+            apiRes = memberFeignClient.getMembersByCompany(companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] FlexibleSlotSelection - 직원 조회 실패 - {}", e.getMessage());
+            return;
+        }
+        List<MemberResDto> members = apiRes != null ? apiRes.getData() : List.of();
+        if (members.isEmpty()) return;
+
+        // 회사 슬롯 목록 - slotCode 기준 매핑
+        List<FlexibleTimeSlot> slots = flexibleTimeSlotRepository.findAll().stream()
+                .filter(s -> companyId.equals(s.getCompanyId()) && "Y".equals(s.getActiveYn()))
+                .toList();
+        FlexibleTimeSlot early = slots.stream().filter(s -> "EARLY".equals(s.getSlotCode())).findFirst().orElse(fallbackSlot);
+        FlexibleTimeSlot standard = slots.stream().filter(s -> "STANDARD".equals(s.getSlotCode())).findFirst().orElse(fallbackSlot);
+        FlexibleTimeSlot late = slots.stream().filter(s -> "LATE".equals(s.getSlotCode())).findFirst().orElse(fallbackSlot);
+        FlexibleTimeSlot[] cycle = { early, standard, late };
+
+        List<MemberResDto> sorted = members.stream()
+                .filter(m -> m.getJoinDate() != null)
+                .sorted((a, b) -> a.getJoinDate().compareTo(b.getJoinDate()))
+                .toList();
+
+        java.time.YearMonth thisMonth = java.time.YearMonth.now();
+        int totalCreated = 0;
+        int totalSkipped = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            MemberResDto m = sorted.get(i);
+            FlexibleTimeSlot picked = cycle[i % cycle.length];
+            for (java.time.YearMonth ym = java.time.YearMonth.from(m.getJoinDate());
+                 !ym.isAfter(thisMonth);
+                 ym = ym.plusMonths(1)) {
+                String yearMonth = ym.toString(); // YYYY-MM
+                if (memberScheduleSelectionRepository
+                        .existsByMemberIdAndTargetYearMonthAndApprovalStatus(
+                                m.getMemberId(), yearMonth, ScheduleApprovalStatus.APPROVED)
+                        || memberScheduleSelectionRepository
+                        .existsByMemberIdAndTargetYearMonthAndApprovalStatus(
+                                m.getMemberId(), yearMonth, ScheduleApprovalStatus.AUTO)) {
+                    totalSkipped++;
+                    continue;
+                }
+                memberScheduleSelectionRepository.save(MemberScheduleSelection.builder()
+                        .memberId(m.getMemberId())
+                        .companyId(companyId)
+                        .targetYearMonth(yearMonth)
+                        .slotId(picked.getSlotId())
+                        .breakStart(picked.getBreakStart())
+                        .breakEnd(picked.getBreakEnd())
+                        .approvalStatus(ScheduleApprovalStatus.AUTO)
+                        .requestedBy(SYSTEM_ACTOR)
+                        .requestedAt(ym.atDay(1).atTime(9, 0))
+                        .build());
+                totalCreated++;
+            }
+        }
+        log.info("[DEMO-SEED] FlexibleSlotSelection 시드 완료 companyId={} 생성={} skip={}",
+                companyId, totalCreated, totalSkipped);
+    }
+
+    /**
+     * 회사 기본 휴가 종류 17종 시드
+     * CompanyLeaveTypeService.initializeDefaults(companyId, null) 호출 - 자체 멱등
+     */
+    private void seedCompanyLeaveTypes(UUID companyId) {
+        try {
+            companyLeaveTypeService.initializeDefaults(companyId, null);
+            log.info("[DEMO-SEED] CompanyLeaveType 기본 휴가 종류 시드 완료 companyId={}", companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] CompanyLeaveType 시드 실패 - {}", e.getMessage());
+        }
+    }
+
+    /**
+     * OvertimePolicy 자체 멱등 시드
+     *  - 활성 정책 (effectiveTo IS NULL OR future) 이미 있으면 skip
+     *  - 1.5배 가산 + 야간 22:00~06:00 + 공휴일 사전결재 필수
+     *  - 법정: 주 OT 12시간(720분) / 주 총 52시간(3120분)
+     *  - 회사 자체: 일 OT 600분(10시간) / 월 OT 2400분(40시간)
+     */
+    private void seedOvertimePolicy(UUID companyId, LocalDate effectiveFrom) {
+        boolean alreadyActive = overtimePolicyRepository
+                .findByCompanyIdAndEffectiveToIsNull(companyId)
+                .isPresent();
+        if (alreadyActive) {
+            log.info("[DEMO-SEED] OvertimePolicy 활성 정책 이미 존재 skip companyId={}", companyId);
+            return;
+        }
+        OvertimePolicy overtimePolicy = OvertimePolicy.builder()
+                .companyId(companyId)
+                .overtimeFloorMinutes(15)
+                .approvalMode(ApprovalMode.HYBRID)
+                .postApprovalDeadlineHours(72)
+                .weeklyOvertimeLimitMinutes(720)
+                .weeklyTotalLimitMinutes(3120)
+                .dailyOvertimeLimitMinutes(600)
+                .monthlyOvertimeLimitMinutes(2400)
+                .holidayWorkRequiresApproval(true)
+                .effectiveFrom(effectiveFrom)
+                .build();
+        overtimePolicyRepository.save(overtimePolicy);
+        log.info("[DEMO-SEED] OvertimePolicy 시드 완료 companyId={}", companyId);
+    }
+
+    /**
+     * BonusPolicy 시드 - 회사 유형별 차등
+     *
+     * 회사 4 (연봉제, demo-current):
+     *  - 정기상여 연 400% 4회 (분기당 기본급 100%)
+     *  - 성과급 1회 최대 200% (연 1회 평가 기반)
+     *  - 명절상여 RATE 50% (설/추석)
+     *  - 대상 전직원 / 최소 근속 3개월 / 휴직자 제외
+     *
+     * 회사 5 (호봉제, demo-prev):
+     *  - 정기상여 연 600% 6회 (분기 + 명절 포함)
+     *  - 성과급 1회 최대 100% (연 1회)
+     *  - 명절상여 AMOUNT 정액 1,000,000원
+     *  - 대상 전직원 / 최소 근속 6개월 / 휴직자 제외
+     *
+     * 멱등: 회사별 활성 정책 1건 이상 있으면 skip
+     */
+    private void seedBonusPolicy(UUID companyId, boolean usePayGrade, LocalDate effectiveFrom) {
+        if (!bonusPolicyRepository.findActivePolicies(companyId, LocalDate.now()).isEmpty()) {
+            log.info("[DEMO-SEED] BonusPolicy 이미 활성 - skip companyId={}", companyId);
+            return;
+        }
+        BonusPolicy policy;
+        if (usePayGrade) {
+            // 호봉제 회사 - 정기상여 비중 큼, 명절 정액
+            policy = BonusPolicy.builder()
+                    .companyId(companyId)
+                    .useRegularBonusYn("Y")
+                    .regularBonusAnnualRate(new BigDecimal("600.00"))
+                    .regularBonusPaymentCount(6)
+                    .usePerformanceBonusYn("Y")
+                    .performanceBonusMaxRate(new BigDecimal("100.00"))
+                    .performanceBonusBasis("연 1회 평가 등급 기반 - S/A/B/C")
+                    .useHolidayBonusYn("Y")
+                    .holidayBonusType(HolidayBonusType.AMOUNT)
+                    .holidayBonusValue(new BigDecimal("1000000.00"))
+                    .eligibilityScope(BonusEligibilityScope.ALL)
+                    .minTenureMonths(6)
+                    .excludeOnLeaveYn("Y")
+                    .effectiveFrom(effectiveFrom)
+                    .memo("데모 시드 - 호봉제 표준 보너스 정책")
+                    .build();
+        } else {
+            // 연봉제 회사 - 정기상여 분기당 100%, 명절 비율
+            policy = BonusPolicy.builder()
+                    .companyId(companyId)
+                    .useRegularBonusYn("Y")
+                    .regularBonusAnnualRate(new BigDecimal("400.00"))
+                    .regularBonusPaymentCount(4)
+                    .usePerformanceBonusYn("Y")
+                    .performanceBonusMaxRate(new BigDecimal("200.00"))
+                    .performanceBonusBasis("연 1회 평가 등급 기반 - S/A/B/C/D")
+                    .useHolidayBonusYn("Y")
+                    .holidayBonusType(HolidayBonusType.RATE)
+                    .holidayBonusValue(new BigDecimal("50.00"))
+                    .eligibilityScope(BonusEligibilityScope.ALL)
+                    .minTenureMonths(3)
+                    .excludeOnLeaveYn("Y")
+                    .effectiveFrom(effectiveFrom)
+                    .memo("데모 시드 - 연봉제 표준 보너스 정책")
+                    .build();
+        }
+        bonusPolicyRepository.save(policy);
+        log.info("[DEMO-SEED] BonusPolicy 시드 완료 companyId={} usePayGrade={} effectiveFrom={}",
+                companyId, usePayGrade, effectiveFrom);
+    }
+
+    /**
+     * 호봉표 시드 - 1~10호봉, 50만원 차이로 누적 (1호봉 250만 ~ 10호봉 700만)
+     */
+    private void seedPayGradeTable(UUID companyId, LocalDate effectiveFrom) {
+        long base = 2_500_000L;
+        long step = 500_000L;
+        for (int i = 1; i <= 10; i++) {
+            PayGradeTable grade = PayGradeTable.builder()
+                    .companyId(companyId)
+                    .step(i)
+                    .baseSalary(base + step * (i - 1))
+                    .effectiveFrom(effectiveFrom)
+                    .build();
+            payGradeTableRepository.save(grade);
+        }
+        log.info("[DEMO-SEED] PayGradeTable 1~10호봉 시드 완료 (250만 ~ 700만)");
+    }
+}

@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.8'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.4team'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/beyond-sw-camp/be23-fin-4team-workforce-be")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.cloud:spring-cloud-dependencies:2024.0.0'
+    }
+}
+
+dependencies {
+    implementation 'com.4team:workforce-common:1.0.31'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    // PDF 리포트 (피평가자 결과 다운로드)
+    implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
+    implementation 'com.openhtmltopdf:openhtmltopdf-slf4j:1.0.10'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

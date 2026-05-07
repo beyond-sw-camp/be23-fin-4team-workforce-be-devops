@@ -1,0 +1,10 @@
+rootProject.name = 'workforce-k8s'
+
+include 'common'
+include 'gateway'
+include 'eureka'
+include 'member-service'
+include 'search-service'
+include 'approval-service'
+include 'salary-service'
+include 'goal-service'

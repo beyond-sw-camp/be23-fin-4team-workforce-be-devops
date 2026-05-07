@@ -1,0 +1,15 @@
+package com._team._team.goal.domain.enums;
+
+public enum GoalActivityType {
+    GOAL_CREATED,
+    PERFORMANCE_SUBMITTED,
+    PERFORMANCE_REVIEWED,
+    APPROVAL_REQUESTED,
+    APPROVED,
+    REJECTED,
+    COMMENT_ADDED,
+    PROGRESS_UPDATED,
+    COMPLETION_SUBMITTED,
+    COMMENT_REACTION,
+    GOAL_METADATA_UPDATED,
+}

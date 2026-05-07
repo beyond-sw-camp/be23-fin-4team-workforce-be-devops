@@ -1,0 +1,41 @@
+# 사전 설치 필요:
+# kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
+#
+# cert-manager는 Let's Encrypt 기반 SSL 인증서를 자동으로 발급/갱신합니다.
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: my-issuer
+  namespace: 4team
+spec:
+  acme:
+    # Let's Encrypt 운영 서버 (인증서 발급용)
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: tpalsdl87@naver.com
+    privateKeySecretRef:
+      # 인증서 발급을 위해 CA와 통신할 때 사용되는 Secret 이름
+      name: my-issuer
+    solvers:
+      - http01:
+          ingress:
+            # 도메인 소유권 검증 시 nginx 기반 ingress controller 활용
+            class: nginx
+---
+# 백엔드 도메인용 인증서 (수정 사항: 백엔드 도메인 미정 - service.workforcehr.shop 가능성 높음)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: server-workforcehr-shop-tls
+  namespace: 4team
+spec:
+  # cert-manager가 아래 secretName으로 Secret을 자동 생성
+  secretName: server-workforcehr-shop-tls
+  duration: 2160h    # 90일
+  renewBefore: 360h  # 만료 15일 전 갱신
+  issuerRef:
+    name: my-issuer
+    kind: ClusterIssuer
+  commonName: server.workforcehr.shop
+  dnsNames:
+    - server.workforcehr.shop

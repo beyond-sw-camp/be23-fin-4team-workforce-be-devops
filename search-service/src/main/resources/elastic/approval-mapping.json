@@ -1,0 +1,32 @@
+{
+  "properties": {
+    "requestId": { "type": "keyword" },
+    "companyId": { "type": "keyword" },
+    "memberId": { "type": "keyword" },
+    "requesterName": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "requesterOrganizationName": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "requesterOrganizationId": { "type": "keyword" },
+    "documentName": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "requestStatus": { "type": "keyword" },
+    "requestType": { "type": "keyword" },
+    "contentJson": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "createdAt": { "type": "date" },
+    "isDeptVisibleYn": { "type": "keyword" }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "properties": {
+    "memberId": {
+      "type": "keyword"
+    },
+    "companyId": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "titleName": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "phoneNumber": {
+      "type": "keyword"
+    },
+    "email": {
+      "type": "text"
+    },
+    "memberStatus": {
+      "type": "keyword"
+    },
+    "position": {
+      "type": "text",
+      "analyzer": "korean_analyzer",
+      "search_analyzer": "korean_search_analyzer"
+    },
+    "organizationList": {
+      "type": "nested",
+      "properties": {
+        "organizationId": { "type": "keyword" },
+        "name": {
+          "type": "text",
+          "analyzer": "korean_analyzer",
+          "search_analyzer": "korean_search_analyzer"
+        },
+        "parentId": { "type": "keyword" }
+      }
+    },
+    "suggest": {
+      "type": "completion"
+    }
+  }
+}

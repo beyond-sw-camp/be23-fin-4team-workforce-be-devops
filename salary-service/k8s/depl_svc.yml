@@ -22,10 +22,10 @@ spec:
           resources:
             limits:
               cpu: "1"
-              memory: "500Mi"
+              memory: "750Mi"
             requests:
               cpu: "0.3"
-              memory: "250Mi"
+              memory: "500Mi"
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
@@ -78,13 +78,13 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 90
+            initialDelaySeconds: 180
             periodSeconds: 30
 ---
 apiVersion: v1

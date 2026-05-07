@@ -19,7 +19,7 @@ spring:
       group-id: member-service
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
-    url: jdbc:mariadb://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:workforcehr}?useSsl=true&trustServerCertificate=true
+    url: jdbc:mariadb://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:workforce}?useSsl=true&trustServerCertificate=true
     username: ${DB_USER}
     password: ${DB_PASSWORD}
   jpa:

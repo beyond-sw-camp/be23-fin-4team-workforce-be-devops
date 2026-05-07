@@ -52,7 +52,6 @@ node_modules/
 # Build artifacts
 build/
 target/
-*.jar
 
 # Local secrets
 *.env

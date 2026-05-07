@@ -15,12 +15,19 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns:
+            allowedOrigins:
               - 'https://www.workforcehr.shop'
               - 'http://localhost:3000'
-            allowedMethods: '*'
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
             allowedHeaders: '*'
             allowCredentials: true
+            maxAge: 3600
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin
       discovery:

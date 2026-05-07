@@ -16,3 +16,4 @@ kafka-python==2.0.2
 py-eureka-client>=0.11.1
 pinecone
 langchain-text-splitters
+redis

@@ -1,0 +1,222 @@
+server:
+  port: 8080
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  codec:
+    max-in-memory-size: 32MB
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - 'https://www.workforcehr.shop'
+              - 'http://localhost:3000'
+            allowedMethods: '*'
+            allowedHeaders: '*'
+            allowCredentials: true
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        ###################### member-chat ######################
+        - id: member-service-member-chat
+          predicates:
+            - Path=/member-chat/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-member-chat-ws
+          predicates:
+            - Path=/mc/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        ###################### saas ######################
+        - id: salary-service-saas-schedule
+          predicates:
+            - Path=/saas/schedules/salary/**
+          filters:
+            - StripPrefix=0
+          uri: http://salary-service:8080
+
+        - id: salary-service-saas-tax-table
+          predicates:
+            - Path=/saas/tax-table/**
+          filters:
+            - StripPrefix=0
+          uri: http://salary-service:8080
+
+        - id: salary-service-saas-tax-rate
+          predicates:
+            - Path=/saas/tax-rate/**
+          filters:
+            - StripPrefix=0
+          uri: http://salary-service:8080
+
+        - id: member-service-saas
+          predicates:
+            - Path=/saas/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        ###################### member ######################
+        - id: member-service
+          predicates:
+            - Path=/member/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-company
+          predicates:
+            - Path=/company/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-organization
+          predicates:
+            - Path=/organization/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-personnel-order
+          predicates:
+            - Path=/personnel-order/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-notification
+          predicates:
+            - Path=/notification/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-esg
+          predicates:
+            - Path=/esg/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-calendar
+          predicates:
+            - Path=/calendar/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        - id: member-service-chat
+          predicates:
+            - Path=/chat/**
+          filters:
+            - StripPrefix=0
+          uri: http://member-service:8080
+
+        ###################### search ######################
+        - id: search-service
+          predicates:
+            - Path=/search/**
+          filters:
+            - StripPrefix=0
+          uri: http://search-service:8080
+
+        - id: search-service-approvals
+          predicates:
+            - Path=/search/approvals/**
+          filters:
+            - StripPrefix=0
+          uri: http://search-service:8080
+
+        ###################### salary ######################
+        - id: attendance-service
+          predicates:
+            - Path=/attendance/**, /work-schedules/**, /company-holidays/**, /leave-policies/**, /leave-promotions/**, /member-balance/**, /work-trip/**
+          filters:
+            - StripPrefix=0
+          uri: http://salary-service:8080
+
+        - id: salary-service
+          predicates:
+            - Path=/salary/**
+          filters:
+            - StripPrefix=0
+          uri: http://salary-service:8080
+
+        ###################### approval ######################
+        - id: approval-service
+          predicates:
+            - Path=/approval/**
+          filters:
+            - StripPrefix=0
+          uri: http://approval-service:8080
+
+        ###################### contract ######################
+        - id: contract-service
+          predicates:
+            - Path=/contract/**
+          filters:
+            - StripPrefix=0
+          uri: http://approval-service:8080
+
+        ###################### goal ######################
+        - id: goal-service
+          predicates:
+            - Path=/goal/**
+          filters:
+            - StripPrefix=0
+          uri: http://goal-service:8080
+
+        - id: goal-service-evaluation
+          predicates:
+            - Path=/evaluation/**
+          filters:
+            - StripPrefix=0
+          uri: http://goal-service:8080
+
+        - id: goal-service-meeting
+          predicates:
+            - Path=/meeting/**
+          filters:
+            - StripPrefix=0
+          uri: http://goal-service:8080
+
+        ###################### ai ######################
+        - id: ai-service
+          predicates:
+            - Path=/ai/**
+          filters:
+            - StripPrefix=0
+          uri: http://ai-service:8090
+
+# Eureka 비활성화 (K8s Service DNS 사용)
+eureka:
+  client:
+    enabled: false
+
+jwt:
+  secretKey: ${JWT_SECRET_AT}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

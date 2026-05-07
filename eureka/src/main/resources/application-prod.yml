@@ -1,0 +1,17 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: eureka-server
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    # 서비스 등록 정보를 빠르게 갱신 (개발 환경 최적화)
+    enable-self-preservation: false  # 자가 보호 모드 비활성화 (개발용)
+    eviction-interval-timer-in-ms: 5000  # 5초마다 만료된 서비스 제거 (기본: 60초)
+    response-cache-update-interval-ms: 5000  # 5초마다 응답 캐시 갱신 (기본: 30초)
+    response-cache-auto-expiration-in-seconds: 10  # 응답 캐시 10초 후 만료

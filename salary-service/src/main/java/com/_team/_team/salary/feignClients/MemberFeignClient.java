@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "member-service")
+@FeignClient(name = "member-service", url = "${feign.url.member-service:}")
 public interface MemberFeignClient {
 
     @GetMapping("/member/{targetMemberId}")

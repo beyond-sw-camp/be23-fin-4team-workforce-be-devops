@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@FeignClient(name = "member-service", contextId = "goalMemberServiceClient")
+@FeignClient(name = "member-service", contextId = "goalMemberServiceClient", url = "${feign.url.member-service:}")
 public interface MemberServiceClient {
 
     @GetMapping("/member/internal/candidates-for-evaluator")

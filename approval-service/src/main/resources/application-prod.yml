@@ -57,3 +57,12 @@ management:
   endpoint:
     health:
       show-details: never
+# K8s 서비스 직접 호출 (Eureka 비활성 환경)
+feign:
+  url:
+    salary-service: http://salary-service:8080
+    member-service: http://member-service:8080
+
+# Feign Client timeout (콜드 스타트 대응)
+spring.cloud.openfeign.client.config.default.connect-timeout: 30000
+spring.cloud.openfeign.client.config.default.read-timeout: 30000

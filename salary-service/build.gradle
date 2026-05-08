@@ -43,6 +43,8 @@ dependencies {
 //    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+    // 배포 때 lb 잡는 것
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
 
     // 1. Quartz & Batch (스케줄링 및 배치)
     implementation 'org.springframework.boot:spring-boot-starter-quartz'

@@ -45,6 +45,9 @@ dependencies {
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
     implementation 'com.openhtmltopdf:openhtmltopdf-slf4j:1.0.10'
 
+    // 배포 때 lb 잡는 것
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

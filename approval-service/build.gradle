@@ -41,6 +41,9 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.9.0'
 
+    // 배포 때 lb 잡는 것
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

@@ -2,6 +2,8 @@
 import httpx
 import logging
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 GATEWAY_URL = settings.gateway_url

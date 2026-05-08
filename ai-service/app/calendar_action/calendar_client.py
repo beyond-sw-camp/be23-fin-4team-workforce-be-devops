@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-GATEWAY_URL = "http://localhost:8080"
+GATEWAY_URL = settings.gateway_url
 
 
 async def create_personal_event(

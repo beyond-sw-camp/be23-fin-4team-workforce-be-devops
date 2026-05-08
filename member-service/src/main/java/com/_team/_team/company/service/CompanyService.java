@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-
+import com._team._team.company.feignclients.AiSyncClient;
 import java.security.SecureRandom;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +47,7 @@ public class CompanyService {
     private final EsgService esgService;
     private final ApprovalServiceClient approvalServiceClient;
     private final SalaryServiceClient salaryServiceClient;
-
+    private final AiSyncClient aiSyncClient;
     @Autowired
     public CompanyService(
             CompanyRepository companyRepository,
@@ -55,7 +55,7 @@ public class CompanyService {
             MemberService memberService,
             NtsApiService ntsApiService,
             MailService mailService,
-            @Qualifier("emailInventory") RedisTemplate<String, String> emailRedisTemplate, MemberRepository memberRepository, S3Uploader s3Uploader, EsgService esgService, ApprovalServiceClient approvalServiceClient, SalaryServiceClient salaryServiceClient) {
+            @Qualifier("emailInventory") RedisTemplate<String, String> emailRedisTemplate, MemberRepository memberRepository, S3Uploader s3Uploader, EsgService esgService, ApprovalServiceClient approvalServiceClient, SalaryServiceClient salaryServiceClient, AiSyncClient aiSyncClient) {
         this.companyRepository = companyRepository;
         this.organizationService = organizationService;
         this.memberService = memberService;
@@ -67,6 +67,7 @@ public class CompanyService {
         this.esgService = esgService;
         this.approvalServiceClient = approvalServiceClient;
         this.salaryServiceClient = salaryServiceClient;
+        this.aiSyncClient = aiSyncClient;
     }
 
     // 이메일 인증 코드 발송
@@ -214,6 +215,29 @@ public class CompanyService {
         } catch (Exception e) {
             log.warn("회사별 자동 작업 트리거 시드 실패: {}", e.getMessage());
         }
+        // ai-service RAG 동기화 (Kafka 이벤트와 별개의 안전망 - 동기 호출)
+        UUID companyId = company.getCompanyId();
+        try {
+            aiSyncClient.syncApproval(companyId);
+        } catch (Exception e) {
+            log.warn("AI 결재 양식 동기화 실패 companyId={}: {}", companyId, e.getMessage());
+        }
+        try {
+            aiSyncClient.syncLeave(companyId);
+        } catch (Exception e) {
+            log.warn("AI 휴가 동기화 실패 companyId={}: {}", companyId, e.getMessage());
+        }
+        try {
+            aiSyncClient.syncAttendance(companyId);
+        } catch (Exception e) {
+            log.warn("AI 근무 동기화 실패 companyId={}: {}", companyId, e.getMessage());
+        }
+        try {
+            aiSyncClient.syncSalary(companyId);
+        } catch (Exception e) {
+            log.warn("AI 급여 동기화 실패 companyId={}: {}", companyId, e.getMessage());
+        }
+
     }
 
     private Company createCompany(CompanyOnboardingReqDto reqDto) {

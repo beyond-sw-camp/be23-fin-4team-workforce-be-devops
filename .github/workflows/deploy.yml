@@ -158,9 +158,9 @@ jobs:
           kubectl apply -f ./search-service/k8s/depl_svc.yml
           kubectl rollout restart deployment search-depl -n 4team
 
-      # ============================================
+      # ===========================================
       # ai-service (Python / FastAPI)
-      # ============================================
+      # ===========================================
       - name: ai build and push
         env:
           REGISTRY: 716482800486.dkr.ecr.ap-northeast-2.amazonaws.com

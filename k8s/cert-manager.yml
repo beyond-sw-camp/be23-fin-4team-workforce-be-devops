@@ -39,3 +39,4 @@ spec:
   commonName: server.workforcehr.shop
   dnsNames:
     - server.workforcehr.shop
+    - n8n.workforcehr.shop

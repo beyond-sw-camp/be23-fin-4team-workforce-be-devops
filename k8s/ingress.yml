@@ -14,6 +14,7 @@ spec:
   tls:
     - hosts:
         - "server.workforcehr.shop"
+        - "n8n.workforcehr.shop"
       secretName: server-workforcehr-shop-tls
   rules:
     - host: server.workforcehr.shop
@@ -26,3 +27,13 @@ spec:
                 name: gateway-service
                 port:
                   number: 80
+    - host: n8n.workforcehr.shop
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-service
+                port:
+                  number: 5678

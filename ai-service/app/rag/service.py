@@ -58,15 +58,17 @@ def apply_layer_priority(matches, final_top_k=5):
                 seen[key] = match
 
     # 2단계: 중복 제거된 결과에 layer 보너스 점수 적용
-    deduplicated = list(seen.values())
-    for match in deduplicated:
+    deduplicated = []
+    for match in seen.values():
         layer = (match.metadata or {}).get("layer", "hr_uploaded")
         boost = LAYER_BOOST.get(layer, 0.0)
-        match.original_score = match.score
-        match.adjusted_score = match.score + boost
-
+        deduplicated.append({
+            "match": match,
+            "original_score": match.score,
+            "adjusted_score": match.score + boost,
+        })
     # 3단계: 조정된 점수로 재정렬
-    deduplicated.sort(key=lambda m: m.adjusted_score, reverse=True)
+    deduplicated.sort(key=lambda m: m["adjusted_score"], reverse=True)
 
     # 4단계: top_k 반환
     result = deduplicated[:final_top_k]
@@ -76,16 +78,16 @@ def apply_layer_priority(matches, final_top_k=5):
         f"→ {len(deduplicated)}건 (중복 제거) "
         f"→ {len(result)}건 (top_k)"
     )
-    for i, match in enumerate(result):
+    for i, item in enumerate(result):
+        match = item["match"]
         md = match.metadata or {}
         logger.info(
-            f"  #{i+1} orig={match.original_score:.3f} "
-            f"adj={match.adjusted_score:.3f} "
+            f"  #{i+1} orig={item['original_score']:.3f} "
+            f"adj={item['adjusted_score']:.3f} "
             f"layer={md.get('layer')} "
             f"[{md.get('category')}/{md.get('subcategory')}]"
         )
-
-    return result
+    return [item["match"] for item in result]
 
 
 def _build_date_info() -> str:

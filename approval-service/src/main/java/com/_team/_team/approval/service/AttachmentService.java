@@ -13,11 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,14 +25,12 @@ public class AttachmentService {
     private final AttachmentRepository attachmentRepository;
     private final ApprovalRequestRepository approvalRequestRepository;
     private final S3Uploader s3Uploader;
-    private final S3Presigner s3Presigner;
 
     @Autowired
-    public AttachmentService(AttachmentRepository attachmentRepository, ApprovalRequestRepository approvalRequestRepository, S3Uploader s3Uploader, S3Presigner s3Presigner) {
+    public AttachmentService(AttachmentRepository attachmentRepository, ApprovalRequestRepository approvalRequestRepository, S3Uploader s3Uploader) {
         this.attachmentRepository = attachmentRepository;
         this.approvalRequestRepository = approvalRequestRepository;
         this.s3Uploader = s3Uploader;
-        this.s3Presigner = s3Presigner;
     }
 
     private static final int MAX_ATTACHMENT_COUNT = 3;
@@ -82,11 +76,7 @@ public class AttachmentService {
         }
 
         return savedAttachments.stream()
-                .map(a -> {
-                    AttachmentResDto dto = AttachmentResDto.fromEntity(a);
-                    dto.setApprovalUrl(generatePresignedUrl(a.getApprovalUrl()));
-                    return dto;
-                })
+                .map(AttachmentResDto::fromEntity)
                 .toList();
     }
 
@@ -105,11 +95,7 @@ public class AttachmentService {
         List<Attachment> attachments = attachmentRepository.findByRequestId(requestId);
 
         return attachments.stream()
-                .map(a -> {
-                    AttachmentResDto dto = AttachmentResDto.fromEntity(a);
-                    dto.setApprovalUrl(generatePresignedUrl(a.getApprovalUrl()));
-                    return dto;
-                })
+                .map(AttachmentResDto::fromEntity)
                 .toList();
     }
 
@@ -143,19 +129,6 @@ public class AttachmentService {
         }
 
         attachmentRepository.deleteAll(attachments);
-    }
-
-    private String generatePresignedUrl(String fileUrl) {
-        String fileName = fileUrl.split("amazonaws.com/")[1];
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket("workforce-approval")
-                .key(fileName)
-                .build();
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(30))
-                .getObjectRequest(getObjectRequest)
-                .build();
-        return s3Presigner.presignGetObject(presignRequest).url().toString();
     }
 
 

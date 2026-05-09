@@ -1,0 +1,76 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: member-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: member
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: salary-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: salary
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: approval-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: approval
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: goal-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: goal
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: search-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: search
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-pdb
+  namespace: 4team
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ai

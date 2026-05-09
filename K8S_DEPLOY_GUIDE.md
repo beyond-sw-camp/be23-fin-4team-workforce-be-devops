@@ -110,7 +110,23 @@ main 브랜치에 push하면 GitHub Actions가 자동으로:
 kubectl apply -f k8s/ingress.yml
 ```
 
-### Step 5: n8n 워크플로 import
+### Step 5: HPA 적용 (선택)
+```bash
+kubectl apply -f k8s/hpa.yml
+kubectl get hpa -n 4team
+```
+
+상세한 배포/테스트 절차는 `HPA_DEPLOY_GUIDE.md` 참고.
+
+### Step 6: PodDisruptionBudget 적용 (무중단 배포 보호)
+```bash
+kubectl apply -f k8s/pdb.yml
+kubectl get pdb -n 4team
+```
+
+Deployment RollingUpdate, HPA, PDB를 포함한 무중단 배포 검증 절차는 `ZERO_DOWNTIME_DEPLOY_GUIDE.md` 참고.
+
+### Step 7: n8n 워크플로 import
 - n8n 접속 후 워크플로 JSON 파일을 import
 
 ## 서비스 구성
@@ -141,6 +157,24 @@ kubectl apply -f k8s/ingress.yml
 7. **ai-service GATEWAY_URL**: 환경변수로 주입
 
 ## 트러블슈팅
+
+### 무중단 배포 상태 확인
+```bash
+kubectl rollout status deployment/gateway-depl -n 4team
+kubectl get pods -n 4team -l app=gateway -w
+kubectl get pdb -n 4team
+```
+
+배포 중 `maxUnavailable: 0`, `maxSurge: 1` 설정으로 새 Pod가 Ready 된 뒤 기존 Pod가 종료되어야 한다.
+
+### HPA 상태 확인
+```bash
+kubectl get hpa -n 4team
+kubectl describe hpa gateway-hpa -n 4team
+kubectl top pods -n 4team
+```
+
+`TARGETS`가 `<unknown>`이면 metrics-server 상태와 Pod CPU request 설정을 확인한다.
 
 ### Pod가 CrashLoopBackOff
 ```bash

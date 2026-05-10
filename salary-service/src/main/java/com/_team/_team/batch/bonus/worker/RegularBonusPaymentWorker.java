@@ -25,15 +25,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 정기 상여 지급일 알림 배치
- * 한국 실무 표준: 상여 지급일 = 매월 25일 가정
+ * 정기 상여 발행 안내
+ * 매월 1일 실행 - 그 달이 지급월이면 인사관리자/대상자에게 발행 안내 알림
+ * 실제 발행은 관리자가 [상여 발행] 화면에서 수동 처리
  */
 @Slf4j
 @Component
 public class RegularBonusPaymentWorker {
 
-    /** 정기 상여 표준 지급일 (한국 실무 통상 25일) */
-    private static final int STANDARD_PAYMENT_DAY_OF_MONTH = 25;
+    // 매월 1일 실행 가정 - cron 으로 보장
+    private static final int STANDARD_TRIGGER_DAY_OF_MONTH = 1;
 
     private final BonusPolicyRepository bonusPolicyRepository;
     private final MemberFeignClient memberFeignClient;
@@ -55,9 +56,9 @@ public class RegularBonusPaymentWorker {
     public Result run(LocalDate today) {
         Result result = new Result();
 
-        // 표준 지급일이 아니면 스킵
-        if (today.getDayOfMonth() != STANDARD_PAYMENT_DAY_OF_MONTH) {
-            log.info("[RegularBonus] today={} 표준 지급일(25일) 아님, 스킵", today);
+        // 매월 1일
+        if (today.getDayOfMonth() != STANDARD_TRIGGER_DAY_OF_MONTH) {
+            log.info("[RegularBonus] today={} 매월 1일 아님, 스킵", today);
             return result;
         }
 
@@ -87,8 +88,8 @@ public class RegularBonusPaymentWorker {
     public Result runForCompany(UUID companyId, LocalDate today) {
         Result result = new Result();
 
-        if (today.getDayOfMonth() != STANDARD_PAYMENT_DAY_OF_MONTH) {
-            log.info("[RegularBonus] companyId={} today={} 표준 지급일 아님, 스킵", companyId, today);
+        if (today.getDayOfMonth() != STANDARD_TRIGGER_DAY_OF_MONTH) {
+            log.info("[RegularBonus] companyId={} today={} 매월 1일 아님, 스킵", companyId, today);
             return result;
         }
 
@@ -203,10 +204,10 @@ public class RegularBonusPaymentWorker {
                         (a, b) -> a));
     }
 
-    /** 직원에게 정기 상여 지급일 알림 (실제 급여 반영은 별도 단계) */
+    // 직원에게 이번 달 정기 상여 안내 - 실제 발행/지급은 관리자가 [상여 발행]에서 처리
     private void publishBonusNotification(BonusPolicy policy, MemberResDto member) {
         String content = String.format(
-                "[정기 상여] 오늘은 정기 상여 지급일입니다. 연 누계 비율 %s%%, 연 %d 회 지급 정책이 적용됩니다.",
+                "[정기 상여] 이번 달 정기 상여 대상자입니다. 연 누계 비율 %s%%, 연 %d 회 정책 적용.",
                 policy.getRegularBonusAnnualRate() != null ? policy.getRegularBonusAnnualRate().toPlainString() : "-",
                 policy.getRegularBonusPaymentCount() != null ? policy.getRegularBonusPaymentCount() : 0);
         eventPublisher.publishEvent(NotificationMessage.builder()

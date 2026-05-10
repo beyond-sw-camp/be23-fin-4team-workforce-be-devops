@@ -74,6 +74,10 @@ public class PersonnelOrder extends BaseTimeEntity {
     @Column(length = 50)
     private String afterJobTitleName;
 
+    /** 호봉 변경 (호봉제 회사만 의미) - null 이면 변경 없음 */
+    private Integer beforeStep;
+    private Integer afterStep;
+
     /** 발령 사유 / 비고 */
     @Column(length = 500)
     private String reason;

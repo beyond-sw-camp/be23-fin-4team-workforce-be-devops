@@ -1,5 +1,6 @@
 package com._team._team.personnel.service;
 
+import com._team._team.company.feignclients.SalaryServiceClient;
 import com._team._team.event.PersonnelOrderApprovedEvent;
 import com._team._team.member.domain.Member;
 import com._team._team.member.domain.MemberPosition;
@@ -38,6 +39,8 @@ public class PersonnelOrderApplyService {
     private final OrganizationRepository organizationRepository;
     private final JobGradeRepository jobGradeRepository;
     private final JobTitleRepository jobTitleRepository;
+    // 발령 적용 후 salary-service 의 활성 Salary 직급/직책 동기화 + 호봉 reset 호출용
+    private final SalaryServiceClient salaryServiceClient;
 
     @Transactional
     public void apply(PersonnelOrderApprovedEvent event) {
@@ -85,6 +88,8 @@ public class PersonnelOrderApplyService {
                 .afterJobGradeName(item.getAfterJobGradeName())
                 .beforeJobTitleName(item.getBeforeJobTitleName())
                 .afterJobTitleName(item.getAfterJobTitleName())
+                .beforeStep(item.getBeforeStep())
+                .afterStep(item.getAfterStep())
                 .reason(item.getReason())
                 .approverId(event.getApproverId())
                 .appliedYn("N")
@@ -142,6 +147,24 @@ public class PersonnelOrderApplyService {
                 order.getAfterOrganizationName(),
                 order.getAfterJobGradeName(),
                 order.getAfterJobTitleName());
+
+        // 직급/직책/호봉 변경된 경우
+        boolean gradeChanged = order.getAfterJobGradeName() != null
+                && !order.getAfterJobGradeName().isBlank();
+        boolean titleChanged = order.getAfterJobTitleName() != null;
+        boolean stepChanged = order.getAfterStep() != null;
+        if (gradeChanged || titleChanged || stepChanged) {
+            try {
+                salaryServiceClient.applyPersonnelOrder(
+                        memberId,
+                        companyId,
+                        gradeChanged ? newGrade.getName() : null,
+                        titleChanged && newTitle != null ? newTitle.getName() : null,
+                        order.getAfterStep());
+            } catch (Exception e) {
+                log.warn("[PersonnelOrder] salary 동기화 실패 - memberId={} - {}", memberId, e.getMessage());
+            }
+        }
     }
 
     /**

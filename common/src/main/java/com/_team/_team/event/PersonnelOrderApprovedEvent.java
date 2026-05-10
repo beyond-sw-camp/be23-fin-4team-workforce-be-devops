@@ -47,6 +47,9 @@ public class PersonnelOrderApprovedEvent {
         /** 직책 변경 - 없으면 null */
         private String beforeJobTitleName;
         private String afterJobTitleName;
+        /** 호봉 변경(호봉제만) - 없으면 null */
+        private Integer beforeStep;
+        private Integer afterStep;
         private String reason;
     }
 }

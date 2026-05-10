@@ -29,6 +29,8 @@ public class BonusPolicyResDto {
     private String usePerformanceBonusYn;
     private BigDecimal performanceBonusMaxRate;
     private String performanceBonusBasis;
+    // 평가 등급 - 성과급 비율
+    private String gradeBonusRatesJson;
 
     private String useHolidayBonusYn;
     private HolidayBonusType holidayBonusType;
@@ -57,6 +59,7 @@ public class BonusPolicyResDto {
                 .usePerformanceBonusYn(p.getUsePerformanceBonusYn())
                 .performanceBonusMaxRate(p.getPerformanceBonusMaxRate())
                 .performanceBonusBasis(p.getPerformanceBonusBasis())
+                .gradeBonusRatesJson(p.getGradeBonusRatesJson())
                 .useHolidayBonusYn(p.getUseHolidayBonusYn())
                 .holidayBonusType(p.getHolidayBonusType())
                 .holidayBonusValue(p.getHolidayBonusValue())

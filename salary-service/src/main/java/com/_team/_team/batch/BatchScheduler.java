@@ -1,6 +1,8 @@
 package com._team._team.batch;
 
 import com._team._team.batch.config.BatchSchedulerProperties;
+import com._team._team.dto.ApiResponse;
+import com._team._team.salary.feignClients.MemberFeignClient;
 import com._team._team.salary.repository.SalaryRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.CronScheduleBuilder;
@@ -27,7 +29,6 @@ import java.util.UUID;
  * salary-service 배치용 Quartz
  * 글로벌 잡: 잡 1개당 트리거 1개
  * 회사별 잡: 회사 × 잡 = N×M 트리거 JobDataMap 에 companyId 저장
- * 회사 식별자: jobName 에 companyId 포함
  */
 @Slf4j
 @Configuration
@@ -41,14 +42,17 @@ public class BatchScheduler {
     private final Scheduler scheduler;
     private final BatchSchedulerProperties schedulerProperties;
     private final SalaryRepository salaryRepository;
+    private final MemberFeignClient memberFeignClient;
 
     @Autowired
     public BatchScheduler(Scheduler scheduler,
                           BatchSchedulerProperties schedulerProperties,
-                          SalaryRepository salaryRepository) {
+                          SalaryRepository salaryRepository,
+                          MemberFeignClient memberFeignClient) {
         this.scheduler = scheduler;
         this.schedulerProperties = schedulerProperties;
         this.salaryRepository = salaryRepository;
+        this.memberFeignClient = memberFeignClient;
     }
 
     @PostConstruct
@@ -71,10 +75,10 @@ public class BatchScheduler {
                 }
             }
 
-            // 2) 회사별 잡 - 부팅 시점 기준 salary 가 있는 모든 회사에 잡 N개씩 시드
+            // 2) 회사별 잡 - 부팅 시점 기준 회사 전체에 잡 N개씩 시드
             Map<String, String> perCompanyJobs = schedulerProperties.getPerCompanyJobs();
             if (perCompanyJobs != null && !perCompanyJobs.isEmpty()) {
-                List<UUID> companyIds = salaryRepository.findDistinctCompanyIds();
+                List<UUID> companyIds = fetchAllCompanyIds();
                 log.info("[BATCH-SCHED] 회사별 잡 시드 대상 회사 {} 개", companyIds.size());
                 for (UUID companyId : companyIds) {
                     for (var e : perCompanyJobs.entrySet()) {
@@ -85,6 +89,21 @@ public class BatchScheduler {
         } catch (Exception e) {
             log.error("Failed to register Quartz jobs", e);
         }
+    }
+
+    /**
+     * 회사 전체 ID 조회
+     */
+    private List<UUID> fetchAllCompanyIds() {
+        try {
+            ApiResponse<List<UUID>> res = memberFeignClient.getAllCompanyIds();
+            if (res != null && res.getData() != null) {
+                return res.getData();
+            }
+        } catch (Exception ex) {
+            log.warn("[BATCH-SCHED] member-service 회사 ID 조회 실패 - salary 기반 fallback: {}", ex.getMessage());
+        }
+        return salaryRepository.findDistinctCompanyIds();
     }
 
     /** 글로벌 잡 - 회사 구분 없이 트리거 1개 */

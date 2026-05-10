@@ -32,7 +32,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AutoCreateTestData implements ApplicationRunner {
+class AutoCreateTestData implements ApplicationRunner {
 
     private final MemberRepository memberRepository;
     private final CompanyService companyService;
@@ -45,10 +45,19 @@ public class AutoCreateTestData implements ApplicationRunner {
     private final MemberPositionRepository memberPositionRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // 데모 비밀번호 동일 - 1회만 해싱 후 모든 직원에 재사용
+    private String cachedDemoPasswordHash;
+
+    private String getDemoPasswordHash() {
+        if (cachedDemoPasswordHash == null) {
+            cachedDemoPasswordHash = passwordEncoder.encode("Test1234!");
+        }
+        return cachedDemoPasswordHash;
+    }
+
     /**
-     * 데모 시드 토글 - 운영 배포 시 false 유지 - >  말 그대로 데모 데이터 -> 온갖 테스트용
-     * true 일 때만 createDemoCompanies() 호출 -> 회사 4 (당월/연봉제), 회사 5 (전월/호봉제) 생성.
-     * salary-service 의 DemoSalarySeedRunner 가 동일 toggle 로 시드 데이터 보강
+     * 데모 시드 토글 - 운영 배포 시 false 유지
+     * true 일 때만 createDemoCompanies() 호출 -> 회사 4 (당월/연봉제), 회사 5 (전월/호봉제) 생성
      */
     @org.springframework.beans.factory.annotation.Value("${seed.demo.enabled:false}")
     private boolean seedDemoEnabled;
@@ -75,14 +84,22 @@ public class AutoCreateTestData implements ApplicationRunner {
     }
 
     /**
-     * 데모 회사 셋업 - 24개월 풀 데이터 (Salary/Payroll/Ledger) 시드용
-     * salary-service 의 DemoSalarySeedRunner 가 회사명 prefix "데모-" 로 식별해서 데이터 시드
-     * - 회사 4: 데모 - 당월·연봉제 (CURRENT_MONTH, payDay=25)
-     * - 회사 5: 데모 - 전월·호봉제 (PREVIOUS_MONTH, payDay=10, usePayGrade=Y)
+     * 데모 회사 셋업 - 36개월 풀 데이터 (Salary/Payroll/Ledger) 시드용
      */
     private void createDemoCompanies() {
-        String[] companyNames = { "데모 - 당월/연봉제", "데모 - 전월/호봉제" };
-        String[] companyDomains = { "demo-current", "demo-prev" };
+        // 가상 IT 회사명
+        String[] companyNames = {
+                "(주)서울디지털테크",
+                "(주)강남솔루션",
+                "(주)판교크리에이션",
+                "(주)역삼파트너스",
+                "(주)상도동테크놀로지"
+        };
+        String[] companyDomains = {
+                "demo-current", "demo-prev", "demo-3", "demo-4", "demo-5"
+        };
+        String[] ceoNames = { "박정훈", "이서연", "한도윤", "최예린", "김지환" };
+        String[] adminNames = { "정인사", "김인사", "이인사", "박인사", "홍인사" };
         for (int idx = 0; idx < companyNames.length; idx++) {
             int adminSeq = 4 + idx; // admin 4 / admin 5
             String companyName = companyNames[idx];
@@ -92,11 +109,11 @@ public class AutoCreateTestData implements ApplicationRunner {
                     CompanyOnboardingReqDto.builder()
                             .companyName(companyName)
                             .companyDomain(companyDomains[idx])
-                            .ceoName("김대표" + adminSeq)
+                            .ceoName(ceoNames[idx])
                             .businessNumber("12345678" + adminSeq + adminSeq)
-                            .address("서울시 강남구 테헤란로 " + adminSeq)
+                            .address("서울시 강남구 테헤란로 " + (100 + adminSeq))
                             .detailAddress(adminSeq + "층")
-                            .adminName("관리자" + adminSeq)
+                            .adminName(adminNames[idx])
                             .adminEmail(adminEmail)
                             .adminPassword("test1234!")
                             .adminPasswordCheck("test1234!")
@@ -115,50 +132,70 @@ public class AutoCreateTestData implements ApplicationRunner {
             UUID devTeamId = organizationService.createOrganization(adminId,
                     OrganizationReqDto.builder().name("개발팀").parentId(topOrg.getOrganizationId()).build());
 
-            JobGrade seniorGrade = jobGradeRepository.save(
-                    JobGrade.builder().company(company).name("과장").displayOrder(1).delYn("NO").build());
-            JobGrade juniorGrade = jobGradeRepository.save(
-                    JobGrade.builder().company(company).name("사원").displayOrder(2).delYn("NO").build());
+            // 직급/직책은 OrganizationService default 시드에서 이미 생성
+            List<JobGrade> grades = jobGradeRepository
+                    .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            JobGrade seniorGrade = grades.stream().filter(g -> "과장".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade juniorGrade = grades.stream().filter(g -> "사원".equals(g.getName())).findFirst().orElseThrow();
 
-            JobTitle teamLeaderTitle = jobTitleRepository.save(
-                    JobTitle.builder().company(company).name("팀장").displayOrder(1).delYn("NO").build());
-            JobTitle memberTitle = jobTitleRepository.save(
-                    JobTitle.builder().company(company).name("팀원").displayOrder(2).delYn("NO").build());
+            List<JobTitle> titles = jobTitleRepository
+                    .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            JobTitle teamLeaderTitle = titles.stream().filter(t -> "팀장".equals(t.getName())).findFirst().orElseThrow();
+            JobTitle memberTitle = titles.stream().filter(t -> "팀원".equals(t.getName())).findFirst().orElseThrow();
 
             List<Role> roles = roleRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            Role hrManagerRole = roles.stream().filter(r -> r.getName().equals("인사 관리자")).findFirst().orElseThrow();
             Role teamLeaderRole = roles.stream().filter(r -> r.getName().equals("팀장")).findFirst().orElseThrow();
             Role employeeRole = roles.stream().filter(r -> r.getName().equals("일반 직원")).findFirst().orElseThrow();
 
-            // 직원 6명 - 입사일 24개월 분산 (장기근속자 + 신규자 혼합)
-            //   장기근속 2명 (24개월/18개월 전) - 퇴직금 시뮬 1년 이상 케이스
-            //   중기 2명 (12개월/9개월 전)
-            //   단기 2명 (6개월/3개월 전) - 1년 미만 퇴직금 케이스
-            String[] demoNames = { "최장수", "오근속", "박중간", "김중기", "신단기", "유신규" };
-            String[] demoInitials = { "CJS", "OGS", "PJG", "KJG", "SDG", "YSG" };
+            // 직원 25명 - 한국 가상 인명, 입사일 분산
+            // 10년+ 5명, 5~9년 4명, 1~4년 11명, 1년 미만 5명
+            // i=0,13 = 팀장 (인사팀장/개발팀장), i=0~4 = senior(과장), 나머지 junior(사원)
+            String[] demoNames = {
+                    "정수영", "한지호", "오미경", "강대훈", "윤재성",   // 10년+ (0~4)
+                    "박서연", "이준혁", "최유진", "임도현",             // 5~9년 (5~8)
+                    "조성훈", "황민지", "권시우", "송하늘", "안재현",
+                    "노유리", "유태민", "백서영", "문지원", "신경수",
+                    "오세린",                                          // 1~4년 (9~19)
+                    "차민준", "곽지수", "표시현", "전규민", "주하은"   // 1년 미만 (20~24)
+            };
+            String[] demoInitials = {
+                    "JSY", "HJH", "OMK", "KDH", "YJS",
+                    "PSY", "LJH", "CYJ", "IDH",
+                    "JSH", "HMJ", "KSW", "SHN", "AJH",
+                    "NYR", "YTM", "BSY", "MJW", "SKS",
+                    "OSL",
+                    "CMJ", "GJS", "PSH", "JGM", "JHE"
+            };
             LocalDate today = LocalDate.now();
-            List<LocalDate> demoJoinDates = Arrays.asList(
-                    today.minusMonths(24),
-                    today.minusMonths(18),
-                    today.minusMonths(12),
-                    today.minusMonths(9),
-                    today.minusMonths(6),
-                    today.minusMonths(3)
-            );
+            // 입사일 - 인덱스 i 별 분포 (장기근속자가 앞쪽 인덱스)
+            int[] monthsAgo = {
+                    156, 144, 132, 120, 121, // 10년+ (13/12/11/10/10년)
+                    96, 84, 72, 60,           // 5~9년 (8/7/6/5년)
+                    48, 42, 36, 30, 26, 22, 18, 15, 12, 10, 9,
+                    6, 5, 4, 3, 2
+            };
 
             for (int i = 0; i < demoNames.length; i++) {
-                UUID teamId = (i < 3) ? hrTeamId : devTeamId;
-                UUID jobGradeId = (i < 2) ? seniorGrade.getJobGradeId() : juniorGrade.getJobGradeId();
-                UUID jobTitleId = (i == 0 || i == 3) ? teamLeaderTitle.getJobTitleId() : memberTitle.getJobTitleId();
-                UUID roleId = (i == 0 || i == 3) ? teamLeaderRole.getRoleId() : employeeRole.getRoleId();
+                UUID teamId = (i < 13) ? hrTeamId : devTeamId;
+                // 10년+ 5명은 senior(과장), 나머지 junior(사원)
+                UUID jobGradeId = (i < 5) ? seniorGrade.getJobGradeId() : juniorGrade.getJobGradeId();
+                // 팀장: 인사팀장 i=0, 개발팀장 i=13
+                boolean isLead = (i == 0 || i == 13);
+                boolean isHrLead = (i == 0); // 인사팀장은 인사 관리자 권한 (조직개편/구성원 관리 등)
+                UUID jobTitleId = isLead ? teamLeaderTitle.getJobTitleId() : memberTitle.getJobTitleId();
+                UUID roleId = isHrLead ? hrManagerRole.getRoleId()
+                        : isLead ? teamLeaderRole.getRoleId()
+                        : employeeRole.getRoleId();
                 String email = "emp_demo" + adminSeq + "_" + (i + 1) + "@gmail.com";
 
                 memberService.createMember(adminId, admin.getDefaultPositionId(),
                         MemberCreateReqDto.builder()
-                                .name(demoNames[i] + adminSeq)
+                                .name(demoNames[i])
                                 .englishInitial(demoInitials[i])
                                 .personalEmail(email)
-                                .joinDate(demoJoinDates.get(i))
+                                .joinDate(today.minusMonths(monthsAgo[i]))
                                 .employmentType(EmploymentType.FULL_TIME)
                                 .organizationId(teamId)
                                 .jobGradeId(jobGradeId)
@@ -167,7 +204,7 @@ public class AutoCreateTestData implements ApplicationRunner {
                                 .build());
 
                 Member created = memberRepository.findByPersonalEmail(email).orElseThrow();
-                created.updatePassword(passwordEncoder.encode("Test1234!"));
+                created.updatePassword(getDemoPasswordHash());
                 created.completeFirstLogin();
             }
 
@@ -225,39 +262,15 @@ public class AutoCreateTestData implements ApplicationRunner {
                             .parentId(topOrg.getOrganizationId())
                             .build());
 
-            // 5. 직급 생성
-            JobGrade seniorGrade = jobGradeRepository.save(
-                    JobGrade.builder()
-                            .company(company)
-                            .name("과장")
-                            .displayOrder(1)
-                            .delYn("NO")
-                            .build());
+            List<JobGrade> grades = jobGradeRepository
+                    .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            JobGrade seniorGrade = grades.stream().filter(g -> "과장".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade juniorGrade = grades.stream().filter(g -> "사원".equals(g.getName())).findFirst().orElseThrow();
 
-            JobGrade juniorGrade = jobGradeRepository.save(
-                    JobGrade.builder()
-                            .company(company)
-                            .name("사원")
-                            .displayOrder(2)
-                            .delYn("NO")
-                            .build());
-
-            // 6. 직책 생성
-            JobTitle teamLeaderTitle = jobTitleRepository.save(
-                    JobTitle.builder()
-                            .company(company)
-                            .name("팀장")
-                            .displayOrder(1)
-                            .delYn("NO")
-                            .build());
-
-            JobTitle memberTitle = jobTitleRepository.save(
-                    JobTitle.builder()
-                            .company(company)
-                            .name("팀원")
-                            .displayOrder(2)
-                            .delYn("NO")
-                            .build());
+            List<JobTitle> titles = jobTitleRepository
+                    .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            JobTitle teamLeaderTitle = titles.stream().filter(t -> "팀장".equals(t.getName())).findFirst().orElseThrow();
+            JobTitle memberTitle = titles.stream().filter(t -> "팀원".equals(t.getName())).findFirst().orElseThrow();
 
             // 7. 역할 조회 (온보딩 시 생성된 기본 역할)
             List<Role> roles = roleRepository
@@ -348,8 +361,7 @@ public class AutoCreateTestData implements ApplicationRunner {
                                 "emp" + c + "_" + (i + 1) + "@gmail.com")
                         .orElseThrow();
 
-                createdMember.updatePassword(
-                        passwordEncoder.encode("Test1234!"));
+                createdMember.updatePassword(getDemoPasswordHash());
 
                 // 최초 로그인 여부 NO로 변경
                 // (비밀번호 변경 없이 바로 로그인 가능하게)

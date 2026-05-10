@@ -6,7 +6,7 @@ import com._team._team.salary.dto.resdto.BonusBatchApplyResDto;
 import com._team._team.salary.dto.resdto.BonusBatchPreviewResDto;
 import com._team._team.salary.service.BonusBatchService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,10 +18,14 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/salary/bonus")
-@RequiredArgsConstructor
 public class BonusBatchController {
 
     private final BonusBatchService bonusBatchService;
+
+    @Autowired
+    public BonusBatchController(BonusBatchService bonusBatchService) {
+        this.bonusBatchService = bonusBatchService;
+    }
 
     /** 일괄 발행 시뮬 - 대상 직원 / 산출액 미리보기 (DB 변경 X) */
     @PostMapping("/preview")

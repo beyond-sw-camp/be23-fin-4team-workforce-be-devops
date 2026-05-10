@@ -70,6 +70,7 @@ public class BonusPolicyService {
                 .usePerformanceBonusYn(normalizeYn(reqDto.getUsePerformanceBonusYn()))
                 .performanceBonusMaxRate(reqDto.getPerformanceBonusMaxRate())
                 .performanceBonusBasis(reqDto.getPerformanceBonusBasis())
+                .gradeBonusRatesJson(reqDto.getGradeBonusRatesJson())
                 .useHolidayBonusYn(normalizeYn(reqDto.getUseHolidayBonusYn()))
                 .holidayBonusType(reqDto.getHolidayBonusType())
                 .holidayBonusValue(reqDto.getHolidayBonusValue())
@@ -102,6 +103,7 @@ public class BonusPolicyService {
                 normalizeYn(reqDto.getUsePerformanceBonusYn()),
                 reqDto.getPerformanceBonusMaxRate(),
                 reqDto.getPerformanceBonusBasis(),
+                reqDto.getGradeBonusRatesJson(),
                 normalizeYn(reqDto.getUseHolidayBonusYn()),
                 reqDto.getHolidayBonusType(),
                 reqDto.getHolidayBonusValue(),
@@ -154,8 +156,6 @@ public class BonusPolicyService {
                 });
     }
 
-    /* ───── 검증 ───── */
-
     // 기간 정합성 검증
     private void validatePeriod(LocalDate from, LocalDate to) {
         if (from == null) {
@@ -163,6 +163,17 @@ public class BonusPolicyService {
         }
         if (to != null && to.isBefore(from)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 종료일은 시작일 이후여야 합니다");
+        }
+        if (from.getDayOfMonth() != 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "상여금 정책 적용 시작일은 매월 1일만 가능합니다.");
+        }
+        if (to != null) {
+            LocalDate lastDay = to.withDayOfMonth(to.lengthOfMonth());
+            if (!to.equals(lastDay)) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "상여금 정책 적용 종료일은 매월 말일만 가능합니다. (예: 5월 종료라면 5/31)");
+            }
         }
     }
 

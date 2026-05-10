@@ -38,6 +38,9 @@ public class BonusPolicyCreateReqDto {
 
     private String performanceBonusBasis;
 
+    // 평가 등급 - 성과급 비율 JSON {"S":15,"A":10,"B":5,"C":0,"D":0}
+    private String gradeBonusRatesJson;
+
     /* 명절상여 */
     private String useHolidayBonusYn;
 

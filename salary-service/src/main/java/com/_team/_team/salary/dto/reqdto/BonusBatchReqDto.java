@@ -2,31 +2,37 @@ package com._team._team.salary.dto.reqdto;
 
 import com._team._team.salary.domain.enums.BonusKind;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
-@Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
+@Data
 public class BonusBatchReqDto {
     @NotNull
     private BonusKind bonusKind;
 
     @NotNull
     private LocalDate payDate;
-
-    /** REGULAR: 1회 지급 비율 (% / 정책 연누계 / 지급횟수 prefill 가능)
-     *  PERFORMANCE: 입력 비율 (% / 정책 max 한도 검증)
-     *  HOLIDAY (RATE): 정책 holidayBonusValue 사용 - 무시
-     *  HOLIDAY (AMOUNT): 정책 holidayBonusValue 정액 사용 - 무시 */
     private BigDecimal ratePercent;
 
     /** 메모 / 사유 */
     private String memo;
+
+    /** 직원별 차등 발행
+     *  성과급은 인사평가 결과 등급별 차등 지급에 사용*/
+    private List<MemberItem> items;
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Data
+    public static class MemberItem {
+        private UUID memberId;
+        // 행별 지급 비율 - null/0이면 미지급
+        private BigDecimal ratePercent;
+    }
 }

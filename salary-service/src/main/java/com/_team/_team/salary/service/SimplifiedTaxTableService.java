@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -213,5 +214,64 @@ public class SimplifiedTaxTableService {
     @Transactional(readOnly = true)
     public long countByYear(int effectiveYear) {
         return repository.countByEffectiveYearAndDelYn(effectiveYear, "N");
+    }
+
+    /** 연도별 전체 행 조회 - 화면 테이블 표시용 */
+    @Transactional(readOnly = true)
+    public List<SimplifiedTaxTable> listByYear(int effectiveYear) {
+        return repository.findByEffectiveYearAndDelYnOrderBySalaryLowerBoundAscDependentCountAsc(
+                effectiveYear, "N");
+    }
+
+    /**
+     * 연도별 엑셀 다운로드 - (DB row 를 국세청 양식 비슷하게 재구성해 .xlsx 바이너리 반환)
+     * (월급여 구간 1행, 부양가족 0~11명 컬럼)
+     */
+    @Transactional(readOnly = true)
+    public byte[] generateExcel(int effectiveYear) {
+        List<SimplifiedTaxTable> rows = repository
+                .findByEffectiveYearAndDelYnOrderBySalaryLowerBoundAscDependentCountAsc(effectiveYear, "N");
+        if (rows.isEmpty()) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, effectiveYear + "년 간이세액표 데이터가 없습니다.");
+        }
+        try (XSSFWorkbook wb = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet(effectiveYear + " 간이세액표");
+            // 헤더 - 월급여 하한 / 상한 / 0명 / 1명 / ... / 11명
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("월급여 하한(원)");
+            header.createCell(1).setCellValue("월급여 상한(원)");
+            for (int i = 0; i <= DEPENDENT_MAX; i++) {
+                header.createCell(2 + i).setCellValue(i + "명");
+            }
+            // (lower, upper) 그룹별로 부양가족 0~11 행 펼치기
+            int rowIdx = 1;
+            Long curLower = null;
+            Long curUpper = null;
+            Row curRow = null;
+            for (SimplifiedTaxTable t : rows) {
+                if (curLower == null
+                        || !curLower.equals(t.getSalaryLowerBound())
+                        || !curUpper.equals(t.getSalaryUpperBound())) {
+                    curRow = sheet.createRow(rowIdx++);
+                    curRow.createCell(0).setCellValue(t.getSalaryLowerBound());
+                    curRow.createCell(1).setCellValue(t.getSalaryUpperBound());
+                    curLower = t.getSalaryLowerBound();
+                    curUpper = t.getSalaryUpperBound();
+                }
+                int dep = t.getDependentCount();
+                if (dep >= 0 && dep <= DEPENDENT_MAX) {
+                    curRow.createCell(2 + dep).setCellValue(t.getMonthlyTaxAmount());
+                }
+            }
+            // 컬럼 폭 자동
+            for (int c = 0; c < 2 + DEPENDENT_MAX + 1; c++) {
+                sheet.autoSizeColumn(c);
+            }
+            wb.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "엑셀 생성 실패: " + e.getMessage());
+        }
     }
 }

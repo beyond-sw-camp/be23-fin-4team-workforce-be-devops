@@ -1,13 +1,18 @@
 package com._team._team.salary.controller;
 
 import com._team._team.dto.ApiResponse;
+import com._team._team.salary.domain.SimplifiedTaxTable;
 import com._team._team.salary.service.SimplifiedTaxTableService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,5 +64,27 @@ public class SimplifiedTaxTableController {
         return new ResponseEntity<>(
                 ApiResponse.success(data, "행 수 조회 성공"),
                 HttpStatus.OK);
+    }
+
+    // 연도별 전체 행 조회 - 화면 테이블 표시용
+    @GetMapping("/list")
+    public ResponseEntity<?> list(@RequestParam("year") Integer year) {
+        List<SimplifiedTaxTable> rows = simplifiedTaxTableService.listByYear(year);
+        return new ResponseEntity<>(
+                ApiResponse.success(rows, "간이세액표 조회 성공"),
+                HttpStatus.OK);
+    }
+
+    // 연도별 엑셀 다운로드 - DB row 기반 동적 생성
+    @GetMapping("/download")
+    public ResponseEntity<byte[]> download(@RequestParam("year") Integer year) {
+        byte[] bytes = simplifiedTaxTableService.generateExcel(year);
+        String filename = year + "_간이세액표.xlsx";
+        String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encoded)
+                .body(bytes);
     }
 }

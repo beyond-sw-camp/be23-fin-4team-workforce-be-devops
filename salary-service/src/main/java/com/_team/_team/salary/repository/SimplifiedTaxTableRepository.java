@@ -50,4 +50,8 @@ public interface SimplifiedTaxTableRepository extends JpaRepository<SimplifiedTa
 
     // 연도별 행 수 카운트
     long countByEffectiveYearAndDelYn(Integer effectiveYear, String delYn);
+
+    // 연도별 전체 행 조회 - 화면 표시 + 엑셀 다운로드용 (월급여 오름차순, 부양가족 오름차순)
+    List<SimplifiedTaxTable> findByEffectiveYearAndDelYnOrderBySalaryLowerBoundAscDependentCountAsc(
+            Integer effectiveYear, String delYn);
 }

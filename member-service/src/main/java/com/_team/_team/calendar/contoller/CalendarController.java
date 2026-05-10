@@ -194,6 +194,24 @@ public class CalendarController {
     }
 
     /**
+     * 다가오는 일정 조회
+     */
+    @GetMapping("/upcoming")
+    public ResponseEntity<?> getUpcomingEvents(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestParam LocalDate from,
+            @RequestParam(defaultValue = "4") int limit,
+            @RequestParam(required = false) EventType eventType) {
+        return new ResponseEntity<>(
+                ApiResponse.success(
+                        calendarService.getUpcomingEvents(memberId, from, limit, eventType),
+                        "다가오는 일정 조회 성공"),
+                HttpStatus.OK
+        );
+    }
+
+    /**
      * 일정 상세 조회
      * - 비공개 개인 일정은 본인만 조회 가능
      * - 다른 회사 일정 조회 불가

@@ -263,6 +263,26 @@ public class CalendarService {
                 .build();
     }
 
+    // 대시보드용 다가오는 일정 조회
+    @Transactional(readOnly = true)
+    public List<CalendarEventResDto> getUpcomingEvents(UUID memberId,
+                                                       LocalDate from,
+                                                       int limit,
+                                                       EventType eventType) {
+        Member member = getMember(memberId);
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        LocalDateTime startAt = from.atStartOfDay();
+        LocalDateTime endAt = from.plusMonths(3).atTime(23, 59, 59);
+
+        return fetchEvents(member, startAt, endAt, eventType)
+                .stream()
+                .filter(event -> !event.getStartAt().toLocalDate().isBefore(from))
+                .sorted((a, b) -> a.getStartAt().compareTo(b.getStartAt()))
+                .limit(safeLimit)
+                .map(CalendarEventResDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
     // 법정 공휴일 + 회사 휴일 합쳐서 월 범위로 필터, 같은 날짜는 회사 휴일이 우선
     private List<CalendarMonthlyResDto.HolidayDto> loadHolidaysForMonth(UUID companyId, int year, int month) {
         LocalDate from = YearMonth.of(year, month).atDay(1);

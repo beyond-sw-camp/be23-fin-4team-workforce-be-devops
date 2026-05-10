@@ -1,7 +1,7 @@
 package com._team._team.company.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -10,12 +10,16 @@ import jakarta.mail.internet.MimeMessage;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MailService {
 
     private final JavaMailSender javaMailSender;
 
-    // 임시 비밀번호 발송
+    @Autowired
+    public MailService(JavaMailSender javaMailSender) {
+        this.javaMailSender = javaMailSender;
+    }
+
+    // 임시 비밀번호 발송 - 메일 실패 추가
     public void sendTempPassword(String toEmail, String companyEmail, String tempPassword) {
         MimeMessage mimeMessage = javaMailSender.createMimeMessage();
         try {
@@ -26,8 +30,7 @@ public class MailService {
             javaMailSender.send(mimeMessage);
             log.info("임시 비밀번호 메일 발송 완료: {}", toEmail);
         } catch (Exception e) {
-            log.error("메일 발송 실패: {}", e.getMessage());
-            throw new RuntimeException(e);
+            log.warn("임시 비밀번호 메일 발송 실패 - 무시 to={} reason={}", toEmail, e.getMessage());
         }
     }
 

@@ -23,6 +23,7 @@ import com._team._team.contract.repository.ContractTemplateRepository;
 import com._team._team.dto.BusinessException;
 import com._team._team.event.ContractSignedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -53,9 +54,10 @@ public class ContractService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ContractNumberService contractNumberService;
     private final ContractSignedEventPublisher contractSignedEventPublisher;
+    private final ContractPdfService contractPdfService;
 
     @Autowired
-    public ContractService(ContractRepository contractRepository, ContractTemplateRepository templateRepository, ContractBatchRepository batchRepository, ContractPartyRepository partyRepository, SalaryServiceClient salaryServiceClient, MemberServiceClient memberServiceClient, ContractNotificationService contractNotificationService, ContractNumberService contractNumberService, ContractSignedEventPublisher contractSignedEventPublisher) {
+    public ContractService(ContractRepository contractRepository, ContractTemplateRepository templateRepository, ContractBatchRepository batchRepository, ContractPartyRepository partyRepository, SalaryServiceClient salaryServiceClient, MemberServiceClient memberServiceClient, ContractNotificationService contractNotificationService, ContractNumberService contractNumberService, ContractSignedEventPublisher contractSignedEventPublisher, ContractPdfService contractPdfService) {
         this.contractRepository = contractRepository;
         this.templateRepository = templateRepository;
         this.batchRepository = batchRepository;
@@ -65,6 +67,7 @@ public class ContractService {
         this.contractNotificationService = contractNotificationService;
         this.contractNumberService = contractNumberService;
         this.contractSignedEventPublisher = contractSignedEventPublisher;
+        this.contractPdfService = contractPdfService;
     }
 
     //    개별 발송
@@ -261,8 +264,6 @@ public class ContractService {
                 publishSalaryContractEvent(contract);
             }
 
-
-            // TODO: PDF 생성 + S3 저장
         }
 
         return ContractResDto.fromEntity(contract, parties);
@@ -559,16 +560,6 @@ public class ContractService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "최대 재발송 횟수(5회)를 초과했습니다.");
         }
 
-        // 동일 직원 + 동일 템플릿으로 SENT 상태인 계약 중복 차단
-        boolean hasSent = contractRepository.existsByEmployeeMemberIdAndContractTemplateTemplateIdAndContractStatusAndDelYn(
-                original.getEmployeeMemberId(),
-                original.getContractTemplate().getTemplateId(),
-                ContractStatus.SENT,
-                "N");
-        if (hasSent) {
-            throw new BusinessException(HttpStatus.CONFLICT, "해당 직원에게 이미 발송 중인 동일 계약서가 있습니다.");
-        }
-
         ContractTemplate template = original.getContractTemplate();
 
         // 최신 데이터로 AUTO 필드 갱신
@@ -670,17 +661,6 @@ public class ContractService {
             if (original.getRevision() >= 5) {
                 throw new BusinessException(HttpStatus.BAD_REQUEST,
                         "최대 재발송 횟수(5회)를 초과했습니다: " + original.getEmployeeName());
-            }
-
-            // 중복 SENT 차단
-            boolean hasSent = contractRepository.existsByEmployeeMemberIdAndContractTemplateTemplateIdAndContractStatusAndDelYn(
-                    original.getEmployeeMemberId(),
-                    template.getTemplateId(),
-                    ContractStatus.SENT,
-                    "N");
-            if (hasSent) {
-                throw new BusinessException(HttpStatus.CONFLICT,
-                        "이미 발송 중인 동일 계약서가 있습니다: " + original.getEmployeeName());
             }
 
             // 최신 데이터로 갱신
@@ -823,5 +803,22 @@ public class ContractService {
         }
 
         return unsignedContracts.size();
+    }
+
+    // ContractService에 추가
+    public byte[] downloadPdf(UUID companyId, UUID memberId, UUID contractId) {
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new EntityNotFoundException("계약서를 찾을 수 없습니다."));
+
+        if (!contract.getCompanyId().equals(companyId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+
+        if (contract.getContractStatus() != ContractStatus.SIGNED) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "서명 완료된 계약서만 다운로드할 수 있습니다.");
+        }
+
+        List<ContractParty> parties = partyRepository.findByContractContractId(contractId);
+        return contractPdfService.buildPdf(contract, parties);
     }
 }

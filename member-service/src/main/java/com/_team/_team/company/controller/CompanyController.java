@@ -119,4 +119,14 @@ public class CompanyController {
                 ApiResponse.success(companyService.findByDomain(domain), "회사 조회 성공"),
                 HttpStatus.OK);
     }
+
+    /**
+     * 회사 전체 BatchScheduler 시드용
+     */
+    @GetMapping("/internal/all-ids")
+    public ResponseEntity<?> listAllCompanyIds() {
+        return new ResponseEntity<>(
+                ApiResponse.success(companyService.listAllCompanyIds(), "회사 ID 목록 조회 성공"),
+                HttpStatus.OK);
+    }
 }

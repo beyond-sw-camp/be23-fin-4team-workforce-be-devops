@@ -174,7 +174,6 @@ public class ContractTemplateService {
                   {"key":"employeeName","label":"성명","type":"text","source":"AUTO","sourceField":"name","editable":false},
                   {"key":"sabun","label":"사번","type":"text","source":"AUTO","sourceField":"sabun","editable":false},
                   {"key":"organizationName","label":"부서","type":"text","source":"AUTO","sourceField":"organizationName","editable":false},
-                  {"key":"ndaPeriod","label":"비밀유지 기간","type":"text","source":"ADMIN_INPUT","editable":false},
                   {"key":"ndaScope","label":"비밀유지 범위","type":"textarea","source":"ADMIN_INPUT","editable":false}
                 ]}""";
     }

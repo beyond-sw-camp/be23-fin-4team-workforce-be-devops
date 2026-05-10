@@ -2,6 +2,8 @@ package com._team._team.salary.consumer;
 
 import com._team._team.salary.domain.Salary;
 import com._team._team.salary.domain.SalaryPolicy;
+import com._team._team.salary.feignClients.MemberFeignClient;
+import com._team._team.salary.feignClients.dto.MemberResDto;
 import com._team._team.salary.repository.SalaryPolicyRepository;
 import com._team._team.salary.repository.SalaryRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +22,13 @@ public class ContractSignedEventConsumer {
 
     private final SalaryRepository salaryRepository;
     private final SalaryPolicyRepository salaryPolicyRepository;
+    private MemberFeignClient memberFeignClient;
 
     @Autowired
-    public ContractSignedEventConsumer(SalaryRepository salaryRepository, SalaryPolicyRepository salaryPolicyRepository) {
+    public ContractSignedEventConsumer(SalaryRepository salaryRepository, SalaryPolicyRepository salaryPolicyRepository, MemberFeignClient memberFeignClient) {
         this.salaryRepository = salaryRepository;
         this.salaryPolicyRepository = salaryPolicyRepository;
+        this.memberFeignClient = memberFeignClient;
     }
 
     @KafkaListener(
@@ -58,6 +62,24 @@ public class ContractSignedEventConsumer {
                 .findActiveSalary(event.getMemberId(), event.getCompanyId(), effectiveDate)
                 .orElse(null);
 
+        // 직급/직책: prev에서 먼저 시도, null이면 member-service에서 조회
+        String jobGradeName = prev != null ? prev.getJobGradeName() : null;
+        String jobTitleName = prev != null ? prev.getJobTitleName() : null;
+
+        if (jobGradeName == null || jobTitleName == null) {
+            try {
+                MemberResDto member = memberFeignClient
+                        .getMemberInfoInternal(event.getMemberId());
+                if (member != null) {
+                    if (jobGradeName == null) jobGradeName = member.getJobGradeName();
+                    if (jobTitleName == null) jobTitleName = member.getJobTitleName();
+                }
+            } catch (Exception e) {
+                log.warn("[Contract→Salary] member 정보 조회 실패. 직급/직책 null로 진행. memberId={}",
+                        event.getMemberId(), e);
+            }
+        }
+
         UUID policyId;
         Integer dependentCount = 1;
         Integer childUnder20Count = 0;
@@ -90,6 +112,8 @@ public class ContractSignedEventConsumer {
                 .companyId(event.getCompanyId())
                 .salaryPolicyId(policyId)
                 .baseSalary(event.getNewSalary())
+                .jobGradeName(jobGradeName)
+                .jobTitleName(jobTitleName)
                 .effectiveFrom(effectiveDate)
                 .effectiveTo(null)
                 .dependentCount(dependentCount)

@@ -3,18 +3,22 @@ package com._team._team.contract.controller;
 import com._team._team.annotation.Action;
 import com._team._team.annotation.CheckPermission;
 import com._team._team.annotation.Resource;
+import com._team._team.contract.domain.Contract;
+import com._team._team.contract.domain.ContractParty;
 import com._team._team.contract.domain.enums.ContractStatus;
 import com._team._team.contract.dto.reqdto.*;
 import com._team._team.contract.dto.resdto.ContractBatchResDto;
 import com._team._team.contract.dto.resdto.ContractResDto;
+import com._team._team.contract.repository.ContractPartyRepository;
 import com._team._team.contract.service.ContractService;
 import com._team._team.dto.ApiResponse;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -245,4 +249,27 @@ public class ContractController {
                 ApiResponse.success(count, count + "명에게 리마인드 알림이 발송되었습니다."),
                 HttpStatus.OK);
     }
+
+    //    서명 완료된 계약서 pdf 다운로드
+    @GetMapping("/{contractId}/pdf")
+    public ResponseEntity<byte[]> downloadPdf(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @PathVariable UUID contractId) {
+
+        byte[] pdf = contractService.downloadPdf(companyId, memberId, contractId);
+
+        String filename = "contract-" + contractId + ".pdf";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentLength(pdf.length);
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(filename, StandardCharsets.UTF_8)
+                        .build());
+
+        return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
+    }
+
 }

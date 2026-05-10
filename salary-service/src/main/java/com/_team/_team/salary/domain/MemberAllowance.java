@@ -88,6 +88,14 @@ public class MemberAllowance  extends BaseTimeEntity{
         this.effectiveTo = endDate;
     }
 
+    // 결재 승인 시점 회사 payDay 기준 적용시점 재산정
+    public void rescheduleEffectiveFrom(LocalDate newEffectiveFrom) {
+        if (this.approvalStatus != AllowanceApprovalStatus.PENDING) {
+            throw new IllegalStateException("PENDING 상태에서만 적용 시작일 재산정 가능합니다.");
+        }
+        this.effectiveFrom = newEffectiveFrom;
+    }
+
     // 결재 승인 처리
     public void approve(UUID approverId, LocalDateTime decidedAt) {
         if (this.approvalStatus != AllowanceApprovalStatus.PENDING) {

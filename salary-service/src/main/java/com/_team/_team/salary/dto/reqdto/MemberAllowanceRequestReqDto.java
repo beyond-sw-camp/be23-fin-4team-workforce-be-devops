@@ -1,7 +1,7 @@
 package com._team._team.salary.dto.reqdto;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -19,7 +19,7 @@ public class MemberAllowanceRequestReqDto {
     private UUID salaryItemTemplateId;
 
     @NotNull(message = "금액은 필수입니다.")
-    @Positive(message = "금액은 0 보다 커야합니다.")
+    @PositiveOrZero(message = "금액은 0 이상이어야 합니다.")
     private Long amount;
 
     @NotNull(message = "적용 시작일은 필수입니다.")

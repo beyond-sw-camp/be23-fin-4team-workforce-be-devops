@@ -3,11 +3,16 @@ package com._team._team.salary.service;
 import com._team._team.dto.BusinessException;
 import com._team._team.salary.domain.MemberAllowance;
 import com._team._team.salary.domain.Salary;
+import com._team._team.salary.domain.SalaryItemTemplate;
+import com._team._team.salary.domain.SalaryPolicy;
 import com._team._team.salary.domain.enums.AllowanceApprovalStatus;
 import com._team._team.salary.repository.MemberAllowanceRepository;
+import com._team._team.salary.repository.SalaryItemTemplateRepository;
+import com._team._team.salary.repository.SalaryPolicyRepository;
 import com._team._team.salary.repository.SalaryRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +33,21 @@ public class MemberAllowanceService {
 
     private final MemberAllowanceRepository repository;
     private final SalaryRepository salaryRepository;
+    private final SalaryItemTemplateRepository salaryItemTemplateRepository;
+    private final SalaryPolicyRepository salaryPolicyRepository;
+    private final PayrollService payrollService;
 
     @Autowired
     public MemberAllowanceService(MemberAllowanceRepository repository,
-                                  SalaryRepository salaryRepository) {
+                                  SalaryRepository salaryRepository,
+                                  SalaryItemTemplateRepository salaryItemTemplateRepository,
+                                  SalaryPolicyRepository salaryPolicyRepository,
+                                  @Lazy PayrollService payrollService) {
         this.repository = repository;
         this.salaryRepository = salaryRepository;
+        this.salaryItemTemplateRepository = salaryItemTemplateRepository;
+        this.salaryPolicyRepository = salaryPolicyRepository;
+        this.payrollService = payrollService;
     }
 
     // 직원 입사 시 수당 선택하면 기본 수당 AUTO 등록, 결재 생략
@@ -101,6 +115,20 @@ public class MemberAllowanceService {
                 .orElseThrow(() -> new BusinessException(
                         HttpStatus.NOT_FOUND, "해당 결재에 연결된 수당 신청을 찾을 수 없습니다."));
 
+        // 승인 시점 회사 payDay 기준 effectiveFrom 자동 재산정 (1일 기준)
+        // 승인일 < payDay : 당월 1일
+        // 승인일 >= payDay : 다음달 1일
+        // (월별 정산 미리보기 cutoff 가 월 1일 시점이라 1일에 맞춰야 정산 미리보기에 잡힘)
+        LocalDate today = decidedAt.toLocalDate();
+        Integer payDay = salaryPolicyRepository.findActivePolicies(entity.getCompanyId(), today)
+                .stream().findFirst()
+                .map(SalaryPolicy::getPayDay)
+                .orElse(25);
+        if (payDay == null) payDay = 25;
+        LocalDate base = today.getDayOfMonth() < payDay ? today : today.plusMonths(1);
+        LocalDate computedEffectiveFrom = base.withDayOfMonth(1);
+        entity.rescheduleEffectiveFrom(computedEffectiveFrom);
+
         // 기존 유효 수당 종료, effectiveFrom 전날로 close (자기 자신 제외, 중복 row 모두 처리)
         List<MemberAllowance> prevList = repository.findCurrentByTemplate(
                 entity.getMemberId(),
@@ -114,6 +142,8 @@ public class MemberAllowanceService {
         }
 
         entity.approve(approverId, decidedAt);
+        log.info("[Allowance][Approve] memberId={} payDay={} effectiveFrom={}",
+                entity.getMemberId(), payDay, computedEffectiveFrom);
     }
 
     // 결재 반려 반영
@@ -173,6 +203,15 @@ public class MemberAllowanceService {
                     "종료일은 시작일 이후여야 합니다.");
         }
         entity.closeEffectivePeriod(at);
+
+        // 영구 종료 후속 처리
+        SalaryItemTemplate template = salaryItemTemplateRepository
+                .findById(entity.getSalaryItemTemplateId())
+                .orElse(null);
+        if (template != null) {
+            payrollService.deleteAllowanceItemsForMember(
+                    companyId, entity.getMemberId(), template.getItemName());
+        }
     }
 
     /**

@@ -28,6 +28,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import com._team._team.company.feignclients.AiSyncClient;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -318,5 +319,13 @@ public class CompanyService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND,
                         "도메인으로 회사를 찾을 수 없습니다: " + domain));
         return CompanyInfoResDto.fromEntity(company);
+    }
+
+    // 회사 전체 UUID 목록 - BatchScheduler 부팅 시드용
+    @Transactional(readOnly = true)
+    public List<UUID> listAllCompanyIds() {
+        return companyRepository.findAll().stream()
+                .map(Company::getCompanyId)
+                .toList();
     }
 }

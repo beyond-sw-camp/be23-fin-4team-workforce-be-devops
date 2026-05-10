@@ -26,6 +26,7 @@ import com._team._team.attendance.domain.enums.SourceType;
 import com._team._team.attendance.domain.enums.WorkTripType;
 import com._team._team.attendance.domain.enums.WorkType;
 import com._team._team.attendance.repository.AttendanceLogRepository;
+import com._team._team.batch.leave.worker.LeaveGrantWorker;
 import com._team._team.attendance.repository.CompanyHolidayRepository;
 import com._team._team.attendance.repository.CompanyLeaveTypeRepository;
 import com._team._team.attendance.repository.DailyAttendanceRepository;
@@ -59,6 +60,7 @@ import com._team._team.salary.domain.enums.RetirementType;
 import com._team._team.salary.domain.enums.TaxReductionType;
 import com._team._team.salary.domain.enums.WageSystemType;
 import com._team._team.salary.dto.reqdto.PayrollCreateReqDto;
+import com._team._team.salary.dto.reqdto.PayrollItemCreateReqDto;
 import com._team._team.salary.feignClients.MemberFeignClient;
 import com._team._team.salary.feignClients.dto.CompanyInfoResDto;
 import com._team._team.salary.feignClients.dto.MemberResDto;
@@ -146,12 +148,17 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     private final WorkScheduleRepository workScheduleRepository;
     private final FlexibleTimeSlotRepository flexibleTimeSlotRepository;
     private final MemberScheduleSelectionRepository memberScheduleSelectionRepository;
+    // 시드용 ANNUAL 부여 - 정책 기반으로 LeaveGrantWorker 가 직접 부여 (seedMemberBalances 대체)
+    private final LeaveGrantWorker leaveGrantWorker;
 
     /** AUTO 부여 (관리자 즉시 부여) 표시용 - 시드 데이터의 시스템 부여 표식 */
     private static final UUID SYSTEM_ACTOR = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private static final String DOMAIN_CURRENT = "demo-current";
     private static final String DOMAIN_PREV = "demo-prev";
+    private static final String DOMAIN_3 = "demo-3";
+    private static final String DOMAIN_4 = "demo-4";
+    private static final String DOMAIN_5 = "demo-5";
     private static final String TAX_TABLE_PATTERN = "classpath*:data/simplified-tax-table-*.xlsx";
     private static final Pattern YEAR_REGEX = Pattern.compile("simplified-tax-table-(\\d{4})\\.xlsx");
 
@@ -183,6 +190,27 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
             seedCompany(DOMAIN_PREV, true, PayCycleType.PREVIOUS_MONTH, 10);
         } catch (Exception e) {
             log.error("[DEMO-SEED] 회사 5 시드 실패 - {}", e.getMessage(), e);
+        }
+
+        // 4) 회사 6 - demo-3 (당월/연봉제)
+        try {
+            seedCompany(DOMAIN_3, false, PayCycleType.CURRENT_MONTH, 25);
+        } catch (Exception e) {
+            log.error("[DEMO-SEED] 회사 6 시드 실패 - {}", e.getMessage(), e);
+        }
+
+        // 5) 회사 7 - demo-4 (전월/호봉제)
+        try {
+            seedCompany(DOMAIN_4, true, PayCycleType.PREVIOUS_MONTH, 10);
+        } catch (Exception e) {
+            log.error("[DEMO-SEED] 회사 7 시드 실패 - {}", e.getMessage(), e);
+        }
+
+        // 6) 회사 8 - demo-5 (당월/연봉제)
+        try {
+            seedCompany(DOMAIN_5, false, PayCycleType.CURRENT_MONTH, 25);
+        } catch (Exception e) {
+            log.error("[DEMO-SEED] 회사 8 시드 실패 - {}", e.getMessage(), e);
         }
 
         log.info("[DEMO-SEED] 정책 시드 완료. 직원/Payroll/Ledger 시드는 후속 Phase 에서 진행");
@@ -286,7 +314,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         UUID companyId = company.getCompanyId();
         log.info("[DEMO-SEED] 회사 정책 시드 시작 - {} ({})", company.getCompanyName(), companyId);
 
-        LocalDate effectiveFrom = LocalDate.now().minusYears(3); // 24개월 데이터 시드 대비
+        // 시드 적용시작일 월 1일로 강제
+        LocalDate effectiveFrom = LocalDate.now().minusYears(3).withDayOfMonth(1);
 
         // 2~3) SalaryPolicy 멱등 - 이미 있으면 정책 부분만 skip, 후속 시드(Salary/MemberBalance/Payroll)는 계속 진행
         SalaryPolicy salaryPolicy = salaryPolicyRepository
@@ -345,8 +374,14 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         // 8) 직원별 Salary + MemberAllowance 시드 (자체 멱등)
         seedEmployees(companyId, salaryPolicy.getSalaryPolicyId(), usePayGrade);
 
-        // 8-1) 직원별 ANNUAL 연차 잔여 시드 (자체 멱등)
-        seedMemberBalances(companyId);
+        // 8-1) 직원별 ANNUAL 연차 부여 - LeavePolicy 기반 LeaveGrantWorker 호출 (자체 멱등)
+        // seedMemberBalances 자체 시드는 제거 - LeaveGrantWorker 와 중복 부여 이슈 해결
+        try {
+            leaveGrantWorker.runForCompany(companyId, LocalDate.now());
+            log.info("[DEMO-SEED] LeaveGrantWorker 회사별 부여 완료 companyId={}", companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] LeaveGrantWorker 호출 실패 companyId={} - {}", companyId, e.getMessage());
+        }
 
         // 8-2) 회사 공휴일 - 법정 공휴일 자동 import (daily 시드에서 휴일 skip 위해 선행)
         seedCompanyHolidays(companyId);
@@ -394,17 +429,33 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         List<MemberResDto> members = apiRes != null ? apiRes.getData() : List.of();
         if (members.isEmpty()) return;
 
+        // 입사일 순 정렬 - idx 기반 패턴 분기용
+        List<MemberResDto> sorted = members.stream()
+                .filter(m -> m.getJoinDate() != null)
+                .sorted((a, b) -> a.getJoinDate().compareTo(b.getJoinDate()))
+                .toList();
+
+        // 미사용 연차 수당 템플릿 미리 조회
+        UUID unusedLeaveTplId = findTemplateId(companyId, "미사용 연차 수당");
+
         LocalDate today = LocalDate.now();
         YearMonth currentYm = YearMonth.from(today);
         int totalLedgers = 0;
         int totalPayrolls = 0;
         int skipped = 0;
         int failed = 0;
+        int unusedLeaveSeeded = 0;
 
-        for (MemberResDto member : members) {
+        for (int i = 0; i < sorted.size(); i++) {
+            MemberResDto member = sorted.get(i);
             if (member.getJoinDate() == null) continue;
-            YearMonth start = YearMonth.from(member.getJoinDate());
-            // 마지막 시드 월 - 지난달까지 (이번달은 아직 진행중이라 정산 X)
+            // 급여(Payroll) 시작월 결정 - 입사일이 그 달 payDay 이전이면 입사월 포함, 이후면 다음 달부터
+            // 예: 25일 월급, 9/15 입사 -> 9월 정산 시드. 9/27 입사 -> 10월부터 시드
+            YearMonth joinYm = YearMonth.from(member.getJoinDate());
+            LocalDate firstPayDate = resolvePayDate(joinYm, cycleType, payDay);
+            YearMonth start = !member.getJoinDate().isAfter(firstPayDate)
+                    ? joinYm
+                    : joinYm.plusMonths(1);
             YearMonth end = currentYm.minusMonths(1);
 
             for (YearMonth ym = start; !ym.isAfter(end); ym = ym.plusMonths(1)) {
@@ -434,6 +485,17 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                                     .build());
                     totalPayrolls++;
 
+                    // 12월 정산 + 1년 이상 재직 + idx 패턴 = 미사용 연차 수당 라인 추가
+                    // confirm/pay 이전에 추가해야 modifiable
+                    if (ym.getMonthValue() == 12 && unusedLeaveTplId != null
+                            && i % 3 == 0
+                            && member.getJoinDate().plusYears(1).isBefore(ym.atDay(1))) {
+                        if (seedUnusedLeavePay(companyId, member.getMemberId(),
+                                created.getPayrollId(), i)) {
+                            unusedLeaveSeeded++;
+                        }
+                    }
+
                     // 과거 시드 데이터 의미 살리기 - 입사일 ~ 지난달까지 모두 PAID
                     // (실제 시점이 payDay 지난 후 = 지급 완료가 자연스러움)
                     // seedCompany 가 @Transactional 가 아니라 findById 로 받은 엔티티는 detached 상태
@@ -454,8 +516,38 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 }
             }
         }
-        log.info("[DEMO-SEED] 월별 시드 결과 - Ledger 신규 {} / Payroll 신규 {} / skip {} / fail {}",
-                totalLedgers, totalPayrolls, skipped, failed);
+        log.info("[DEMO-SEED] 월별 시드 결과 - Ledger 신규 {} / Payroll 신규 {} / skip {} / fail {} / 미사용연차수당 {}",
+                totalLedgers, totalPayrolls, skipped, failed, unusedLeaveSeeded);
+    }
+
+    /**
+     * 미사용 연차 수당 PayrollItem 시드
+     * - 활성 Salary 의 baseSalary 기반 일급 산정
+     * - idx 따라 미사용 일수 다양화 (3~8일)
+     * - 만원 단위 반올림
+     */
+    private boolean seedUnusedLeavePay(UUID companyId, UUID memberId, UUID payrollId, int i) {
+        UUID tplId = findTemplateId(companyId, "미사용 연차 수당");
+        if (tplId == null) return false;
+        Salary activeSalary = salaryRepository
+                .findActiveSalary(memberId, companyId, LocalDate.now()).orElse(null);
+        if (activeSalary == null) return false;
+        int[] unusedDaysByIdx = { 7, 5, 8, 6, 4, 3 };
+        int unusedDays = unusedDaysByIdx[i % unusedDaysByIdx.length];
+        long dailyWage = activeSalary.getBaseSalary() / 21; // 월 21일 기준 일급
+        long raw = dailyWage * unusedDays;
+        long amount = ((raw + 9999) / 10000) * 10000; // 만원 단위 반올림
+        try {
+            payrollService.createPayrollItem(companyId, payrollId,
+                    PayrollItemCreateReqDto.builder()
+                            .salaryItemTemplateId(tplId)
+                            .amount(amount)
+                            .build());
+            return true;
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] 미사용 연차 수당 시드 실패 memberId={} - {}", memberId, e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -531,9 +623,14 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
             return;
         }
 
-        // SalaryItemTemplate 조회 - 직책수당 / 자녀수당 templateId 매칭
+        // SalaryItemTemplate 조회 - 직책 / 자녀 / 연구활동비 / 고정 금액 항목들
         UUID positionAllowanceTplId = findTemplateId(companyId, "직책수당");
         UUID childAllowanceTplId = findTemplateId(companyId, "자녀수당");
+        UUID researchAllowanceTplId = findTemplateId(companyId, "연구활동비");
+        // 고정 금액 항목 (이전엔 회사 공통 자동 적용이었으나 opt-in 모델로 직원별 명시 부여)
+        UUID mealAllowanceTplId = findTemplateId(companyId, "식대");
+        UUID vehicleAllowanceTplId = findTemplateId(companyId, "자가운전보조금");
+        UUID childcareAllowanceTplId = findTemplateId(companyId, "보육수당");
 
         // 입사일 빠른 순으로 정렬 (장기근속 i=0)
         List<MemberResDto> sorted = members.stream()
@@ -546,6 +643,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         int[] dependentByIdx = { 3, 2, 4, 1, 2, 1 };
         int[] childByIdx = { 1, 0, 2, 0, 1, 0 };
 
+        // 입사일 기준 baseSalary - 그 후로 매년 1/1 마다 인상된 행 추가 시드
         for (int i = 0; i < sorted.size(); i++) {
             MemberResDto member = sorted.get(i);
             // 이미 시드된 Salary 있으면 skip (멱등)
@@ -558,38 +656,99 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
             }
 
             int idx = Math.min(i, yearlySalaryByIdx.length - 1);
-            long baseSalary = yearlySalaryByIdx[idx];
-            Integer step = usePayGrade ? Math.min(i + 1, 6) : null; // 호봉제는 1~6호봉
-            // 호봉제면 PayGradeTable 매칭 baseSalary (250만 + (step-1) × 50만)
-            if (usePayGrade && step != null) {
-                baseSalary = 2_500_000L + 500_000L * (step - 1);
+            long startBaseSalary = yearlySalaryByIdx[idx];
+            Integer startStep = usePayGrade ? Math.min(i + 1, 6) : null;
+            if (usePayGrade && startStep != null) {
+                startBaseSalary = 2_500_000L + 500_000L * (startStep - 1);
             }
 
-            Salary salary = Salary.builder()
-                    .memberId(member.getMemberId())
-                    .companyId(companyId)
-                    .salaryPolicyId(salaryPolicyId)
-                    .step(step)
-                    .baseSalary(baseSalary)
-                    .jobGradeName(member.getJobGradeName())
-                    .jobTitleName(member.getJobTitleName())
-                    .effectiveFrom(member.getJoinDate())
-                    .dependentCount(dependentByIdx[idx])
-                    .childUnder20Count(childByIdx[idx])
-                    .taxReductionType(TaxReductionType.NONE)
-                    .taxReductionRate(BigDecimal.ZERO)
-                    .build();
-            salaryRepository.save(salary);
+            LocalDate joinDate = member.getJoinDate();
+            LocalDate today = LocalDate.now();
+            int currentYear = today.getYear();
 
-            // 직책수당 - 팀장 (i=0, i=3)
-            if ((i == 0 || i == 3) && positionAllowanceTplId != null) {
-                saveAllowance(companyId, member.getMemberId(), positionAllowanceTplId,
-                        300_000L, member.getJoinDate(), "데모 시드 - 팀장 직책수당");
+            long curBase = startBaseSalary;
+            Integer curStep = startStep;
+            Salary prevSalary = null;
+
+            // 입사년도 ~ 올해까지 매년 행 생성 (첫 해는 입사일, 이후는 1/1)
+            for (int year = joinDate.getYear(); year <= currentYear; year++) {
+                LocalDate periodStart = (year == joinDate.getYear())
+                        ? joinDate.withDayOfMonth(1)
+                        : LocalDate.of(year, 1, 1);
+
+                // 입사 다음 해부터 매년 호봉/baseSalary 인상 (호봉제: step+1 cap=8 / 비호봉제: +5% 만원 단위)
+                if (year > joinDate.getYear()) {
+                    if (usePayGrade && curStep != null) {
+                        curStep = Math.min(curStep + 1, 8);
+                        curBase = 2_500_000L + 500_000L * (curStep - 1);
+                    } else {
+                        long raised = (long) (curBase * 1.05);
+                        curBase = (raised / 10000) * 10000;
+                    }
+                }
+
+                // 이전 행 닫기 (effectiveTo = 새 행 시작일 -1)
+                if (prevSalary != null) {
+                    prevSalary.closeEffectivePeriod(periodStart.minusDays(1));
+                    salaryRepository.save(prevSalary);
+                }
+
+                Salary salary = Salary.builder()
+                        .memberId(member.getMemberId())
+                        .companyId(companyId)
+                        .salaryPolicyId(salaryPolicyId)
+                        .step(curStep)
+                        .baseSalary(curBase)
+                        .jobGradeName(member.getJobGradeName())
+                        .jobTitleName(member.getJobTitleName())
+                        .effectiveFrom(periodStart)
+                        .dependentCount(dependentByIdx[idx])
+                        .childUnder20Count(childByIdx[idx])
+                        .taxReductionType(TaxReductionType.NONE)
+                        .taxReductionRate(BigDecimal.ZERO)
+                        .build();
+                prevSalary = salaryRepository.save(salary);
             }
-            // 자녀수당 - i=2 (자녀 2명)
-            if (i == 2 && childAllowanceTplId != null) {
+
+            // 직책수당 - 부장(i=0) / 팀장(i=3, i=13) / 차장 (i=6, i=9)
+            if (positionAllowanceTplId != null) {
+                Long posAmount = null;
+                String posReason = null;
+                if (i == 0) { posAmount = 500_000L; posReason = "데모 시드 - 부장 직책수당"; }
+                else if (i == 3 || i == 13) { posAmount = 300_000L; posReason = "데모 시드 - 팀장 직책수당"; }
+                else if (i == 6 || i == 9) { posAmount = 200_000L; posReason = "데모 시드 - 차장 직책수당"; }
+                if (posAmount != null) {
+                    saveAllowance(companyId, member.getMemberId(), positionAllowanceTplId,
+                            posAmount, member.getJoinDate(), posReason);
+                }
+            }
+            // 자녀수당 - 자녀 보유 직원 (idx 패턴 따라 회사당 6~8명)
+            if (childAllowanceTplId != null && i >= 2 && i % 3 == 2) {
+                int kids = (i % 2 == 0) ? 2 : 1;
+                long childAmt = kids * 100_000L;
                 saveAllowance(companyId, member.getMemberId(), childAllowanceTplId,
-                        200_000L, member.getJoinDate(), "데모 시드 - 자녀 2명 수당");
+                        childAmt, member.getJoinDate(),
+                        String.format("데모 시드 - 자녀 %d명 수당", kids));
+            }
+            // 연구활동비 - 개발팀 일부 직원 (i=7~12)
+            if (researchAllowanceTplId != null && i >= 7 && i <= 12) {
+                saveAllowance(companyId, member.getMemberId(), researchAllowanceTplId,
+                        200_000L, member.getJoinDate(), "데모 시드 - 연구활동비");
+            }
+            // 고정 금액 항목 일괄 부여 - 식대/자가운전/보육수당 (모든 직원에게 명시 부여)
+            // opt-in 모델 - 자동 적용 폐기됐으니 명시 부여 필수
+            if (mealAllowanceTplId != null) {
+                saveAllowance(companyId, member.getMemberId(), mealAllowanceTplId,
+                        200_000L, member.getJoinDate(), "데모 시드 - 식대 (고정)");
+            }
+            if (vehicleAllowanceTplId != null) {
+                saveAllowance(companyId, member.getMemberId(), vehicleAllowanceTplId,
+                        200_000L, member.getJoinDate(), "데모 시드 - 자가운전보조금 (고정)");
+            }
+            // 보육수당은 자녀 있는 직원만 (자녀수당 부여 패턴과 동일)
+            if (childcareAllowanceTplId != null && i >= 2 && i % 3 == 2) {
+                saveAllowance(companyId, member.getMemberId(), childcareAllowanceTplId,
+                        200_000L, member.getJoinDate(), "데모 시드 - 보육수당 (고정)");
             }
         }
         log.info("[DEMO-SEED] 직원 Salary + Allowance 시드 완료 companyId={} 직원={}",
@@ -823,12 +982,17 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 .findByCompanyIdAndCode(companyId, "HALF_PM")
                 .map(CompanyLeaveType::getCompanyLeaveTypeId)
                 .orElse(null);
-        log.info("[DEMO-SEED] >>> seedDailyAttendance 시작 companyId={} 직원={}명 holidaySet={}건 annualTypeId={} halfPmTypeId={}",
-                companyId, sorted.size(), holidaySet.size(), annualTypeId, halfPmTypeId);
+        UUID halfAmTypeId = companyLeaveTypeRepository
+                .findByCompanyIdAndCode(companyId, "HALF_AM")
+                .map(CompanyLeaveType::getCompanyLeaveTypeId)
+                .orElse(null);
+        log.info("[DEMO-SEED] >>> seedDailyAttendance 시작 companyId={} 직원={}명 holidaySet={}건 annualTypeId={} halfPmTypeId={} halfAmTypeId={}",
+                companyId, sorted.size(), holidaySet.size(), annualTypeId, halfPmTypeId, halfAmTypeId);
 
         for (int i = 0; i < sorted.size(); i++) {
             MemberResDto member = sorted.get(i);
-            int idx = Math.min(i, 5);
+            // 6개 패턴 순환 - i=0..24 모두 다양한 출퇴근 시간 + 특수 근태(휴가/출장/지각/결근) 분포
+            int idx = i % 6;
             // 직원별 출/퇴근 시간 분기 (24시간 기준)
             // {clockIn시, clockIn분, clockOut시, clockOut분, 화목추가OT여부}
             int clockInH, clockInM, clockOutH, clockOutM;
@@ -844,7 +1008,11 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
             int memberCreated = 0;
             int memberSkipped = 0;
-            for (LocalDate d = member.getJoinDate(); !d.isAfter(yesterday); d = d.plusDays(1)) {
+            // 근태 시드 시작일 cap - max(joinDate, today-36개월), 3년치 일별 근태
+            LocalDate seedStart = member.getJoinDate().isBefore(LocalDate.now().minusMonths(36))
+                    ? LocalDate.now().minusMonths(36)
+                    : member.getJoinDate();
+            for (LocalDate d = seedStart; !d.isAfter(yesterday); d = d.plusDays(1)) {
                 int dow = d.getDayOfWeek().getValue(); // 1=월 ~ 7=일
                 if (dow == 6 || dow == 7) continue; // 토/일 skip
                 if (holidaySet.contains(d)) continue; // 공휴일 skip - 정상 휴무 시뮬
@@ -907,12 +1075,19 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         }
                     }
                 }
-                // 추가: 매 분기 마지막 달 20일 - 직원 i=2,3 출장 (중간 직급은 분기 출장 자주)
+                // 추가: 매 분기 마지막 달 20일 - 직원 idx=2,3 출장 (중간 직급은 분기 출장 자주)
                 if ((monthVal == 3 || monthVal == 6 || monthVal == 9 || monthVal == 12)
                         && dayOfMonth == 20 && (idx == 2 || idx == 3)) {
                     specialTripType = WorkTripType.BUSINESS_TRIP;
                 }
-                // 화/목 추가 OT 1시간 (i=1)
+                // 지각 패턴 - idx=4 직원 매월 12일 09:30 출근 (특수 근태 없을 때만)
+                boolean isTardy = idx == 4 && dayOfMonth == 12
+                        && specialStatus == null && specialTripType == null;
+                // 무단결근 패턴 - idx=5 직원 분기 마지막 달 28일 ABSENT (특수 근태 없을 때만)
+                boolean isAbsent = idx == 5 && dayOfMonth == 28
+                        && (monthVal == 3 || monthVal == 6 || monthVal == 9 || monthVal == 12)
+                        && specialStatus == null && specialTripType == null;
+                // 화/목 추가 OT 1시간 (idx=1)
                 int outH = clockOutH;
                 int outM = clockOutM;
                 if (tueThuExtra && (dow == 2 || dow == 4)) {
@@ -926,7 +1101,14 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 int overtime;
                 AttendanceStatus statusToSet = AttendanceStatus.NORMAL;
 
-                if (specialStatus == AttendanceStatus.LEAVE) {
+                if (isAbsent) {
+                    // 무단결근 - 출퇴근 기록 없음, ABSENT
+                    clockIn = null;
+                    clockOut = null;
+                    worked = 0;
+                    overtime = 0;
+                    statusToSet = AttendanceStatus.ABSENT;
+                } else if (specialStatus == AttendanceStatus.LEAVE) {
                     // 종일 휴가 - 출퇴근 기록 없음
                     clockIn = null;
                     clockOut = null;
@@ -934,15 +1116,25 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                     overtime = 0;
                     statusToSet = AttendanceStatus.LEAVE;
                 } else if (specialStatus == AttendanceStatus.HALF) {
-                    // 반차 (오후) - 09:00~13:00 4시간 근무
-                    clockIn = d.atTime(9, 0);
-                    clockOut = d.atTime(13, 0);
+                    // 반차 - 짝수월 = 오후 반차 (09~13), 홀수월 = 오전 반차 (14~18)
+                    // 한국 표준: 오전 반차는 09~13 출근/퇴근, 오후 반차는 14~18 출근/퇴근
+                    if (monthVal % 2 == 0) {
+                        // 오후 반차 - 오전 09:00~13:00 근무 후 퇴근
+                        clockIn = d.atTime(9, 0);
+                        clockOut = d.atTime(13, 0);
+                    } else {
+                        // 오전 반차 - 오후 14:00~18:00 근무 (오전 휴식)
+                        clockIn = d.atTime(14, 0);
+                        clockOut = d.atTime(18, 0);
+                    }
                     worked = 4 * 60;
                     overtime = 0;
                     statusToSet = AttendanceStatus.HALF;
                 } else {
                     // 정상 또는 출장/외근 - 출퇴근 기록 있음 (출장 시 기본 스케줄 사용)
-                    clockIn = d.atTime(clockInH, clockInM);
+                    int actualInH = isTardy ? 9 : clockInH;
+                    int actualInM = isTardy ? 30 : clockInM;
+                    clockIn = d.atTime(actualInH, actualInM);
                     clockOut = d.atTime(outH, outM);
                     int totalMinutes = (int) java.time.Duration.between(clockIn, clockOut).toMinutes();
                     int breakMinutes = 60; // 점심 1시간
@@ -991,7 +1183,11 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
                 // 연차/반차 - LeaveRequest 시드 (이미 있으면 skip)
                 if (specialStatus == AttendanceStatus.LEAVE || specialStatus == AttendanceStatus.HALF) {
-                    UUID typeId = specialStatus == AttendanceStatus.LEAVE ? annualTypeId : halfPmTypeId;
+                    // 반차는 짝수월=오후/홀수월=오전 분기, 시드 typeId 도 같은 기준으로 매핑
+                    boolean isAm = specialStatus == AttendanceStatus.HALF && monthVal % 2 == 1;
+                    UUID typeId = specialStatus == AttendanceStatus.LEAVE
+                            ? annualTypeId
+                            : (isAm ? halfAmTypeId : halfPmTypeId);
                     if (typeId != null) {
                         boolean alreadyHas = !leaveRequestRepository
                                 .findAllByMemberIdAndStartDateAndDelYn(member.getMemberId(), d, "N")
@@ -1000,7 +1196,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                             double usage = specialStatus == AttendanceStatus.LEAVE ? 1.0 : 0.5;
                             String reason = specialStatus == AttendanceStatus.LEAVE
                                     ? "연차 사용 (시드)"
-                                    : "오후 반차 사용 (시드)";
+                                    : (isAm ? "오전 반차 사용 (시드)" : "오후 반차 사용 (시드)");
                             LocalDateTime requestedAt = d.minusDays(7).atTime(10, 0);
                             LocalDateTime decidedAt = d.minusDays(5).atTime(15, 0);
                             LeaveRequest lr = LeaveRequest.builder()

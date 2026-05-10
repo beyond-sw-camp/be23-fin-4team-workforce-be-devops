@@ -12,7 +12,6 @@ import java.util.UUID;
 
 @FeignClient(
         name = "ai-service",
-        url = "${feign.url.ai-service:}",
         configuration = FeignFormConfig.class
 )
 public interface AiServiceClient {

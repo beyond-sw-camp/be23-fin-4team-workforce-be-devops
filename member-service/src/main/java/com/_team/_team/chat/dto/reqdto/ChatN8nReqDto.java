@@ -16,5 +16,6 @@ public class ChatN8nReqDto {
     private String conversationHistory;
     private String sessionId;
     private String action;
+    private Boolean isHrAdmin;
 
 }

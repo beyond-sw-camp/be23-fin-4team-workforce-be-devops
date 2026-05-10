@@ -193,11 +193,12 @@ async def process_document(
         company_id: str,
         document_name: str,
         text: str,
-        layer: str = "hr_uploaded"):
+        layer: str = "hr_uploaded",
+        is_hr: bool = False):
 
     logger.info(
         f"[process_document] 시작: {document_name}, "
-        f"{len(text)}자, layer={layer}"
+        f"{len(text)}자, layer={layer}, is_hr={is_hr}"
     )
 
     preprocessed_text = preprocess_text(text)
@@ -241,6 +242,7 @@ async def process_document(
                     "section_index": section_idx,
                     "chunk_in_section": chunk_idx,
                     "layer": layer,
+                    "is_hr": is_hr,
                 }
             })
             global_chunk_index += 1

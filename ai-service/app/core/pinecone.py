@@ -23,13 +23,16 @@ def search_vectors(
         min_score: float = 0.35,
         category: str | None = None,
         include_platform: bool = True,
-        document_name: str | None = None) -> list[dict]:
+        document_name: str | None = None,
+        is_hr_admin: bool = False) -> list[dict]:
     """
     Pinecone 벡터 검색.
 
     Args:
         include_platform: True면 플랫폼 공통 문서도 함께 검색 (기본 True)
         document_name: 지정 시 해당 문서명의 청크만 검색 (라우팅 용도)
+        is_hr_admin: False면 is_hr=True 인 청크는 검색에서 제외 (인사팀 전용 가이드 차단)
+                     True면 필터 없음 (인사팀 가이드도 답변)
     """
     # 회사 ID 필터
     if include_platform:
@@ -45,9 +48,14 @@ def search_vectors(
     if document_name:
         filter_dict["document_name"] = {"$eq": document_name}
 
+    # 인사팀 전용 가이드 필터링
+    # is_hr 필드가 없는 기존 청크(False 취급)도 통과하도록 $ne: True 사용
+    if not is_hr_admin:
+        filter_dict["is_hr"] = {"$ne": True}
+
     logger.info(
         f"[search_vectors] top_k={top_k}, min_score={min_score}, "
-        f"filter={filter_dict}"
+        f"is_hr_admin={is_hr_admin}, filter={filter_dict}"
     )
 
     results = index.query(
@@ -63,6 +71,7 @@ def search_vectors(
         logger.info(
             f"  #{i+1} score={m.score:.3f} "
             f"layer={md.get('layer', '?')} "
+            f"is_hr={md.get('is_hr', False)} "
             f"[{md.get('category', '?')}/{md.get('subcategory', '?')}]"
         )
 

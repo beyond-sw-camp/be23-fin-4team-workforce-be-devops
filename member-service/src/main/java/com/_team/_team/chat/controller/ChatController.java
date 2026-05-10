@@ -25,11 +25,12 @@ public class ChatController {
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-User-IsHrAdmin", required = false, defaultValue = "NO") String isHrAdmin,  // 추가
             @Valid @RequestBody ChatReqDto reqDto) {
         return new ResponseEntity<>(
                 ApiResponse.success(
                         chatService.chat(memberId, companyId,
-                                memberPositionId, authorization, reqDto),
+                                memberPositionId, authorization, isHrAdmin, reqDto),  // 인자 추가
                         "챗봇 응답 성공"),
                 HttpStatus.OK
         );

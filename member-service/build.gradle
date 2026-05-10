@@ -32,7 +32,7 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation 'com.4team:workforce-common:1.0.31'
+    implementation 'com.4team:workforce-common:1.0.37'
 
     // Lombok (compileOnly + annotationProcessor 필수 세트)
     compileOnly 'org.projectlombok:lombok'

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "member-service", url = "${feign.url.member-service:}")
+@FeignClient(name = "member-service")
 public interface MemberFeignClient {
 
     @GetMapping("/member/{targetMemberId}")
@@ -46,4 +46,14 @@ public interface MemberFeignClient {
      */
     @GetMapping("/member/internal/admins-by-company")
     ApiResponse<List<MemberResDto>> getAdminsByCompany(@RequestParam("companyId") UUID companyId);
+
+    @GetMapping("/member/internal/{memberId}/info")
+    MemberResDto getMemberInfoInternal(@PathVariable("memberId") UUID memberId);
+
+    /**
+     * BatchScheduler 시드용
+     */
+    @GetMapping("/company/internal/all-ids")
+    ApiResponse<List<UUID>> getAllCompanyIds();
+
 }

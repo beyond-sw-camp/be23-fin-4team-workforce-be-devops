@@ -40,6 +40,9 @@ public class MemberCreateReqDto {
     @NotNull(message = "고용형태를 선택해 주세요.")
     private EmploymentType employmentType;
 
+    /** 계약 만료일 -계약직 인 경우만 사용 */
+    private LocalDate contractEndDate;
+
     @NotNull(message = "조직을 선택해 주세요.")
     private UUID organizationId;
 
@@ -78,6 +81,8 @@ public class MemberCreateReqDto {
                 .sabun(sabun)
                 .joinDate(this.joinDate)
                 .employmentType(this.employmentType)
+                .contractEndDate(
+                        this.employmentType == EmploymentType.CONTRACT ? this.contractEndDate : null)
                 .phoneNumber(this.phoneNumber)
                 .emergencyContact(this.emergencyContact)
                 .address(this.address)

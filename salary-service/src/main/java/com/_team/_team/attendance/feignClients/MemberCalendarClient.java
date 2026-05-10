@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
-@FeignClient(name = "member-service", contextId = "memberCalendarClient", url = "${feign.url.member-service:}")
+@FeignClient(name = "member-service", contextId = "memberCalendarClient")
 public interface MemberCalendarClient {
 
     @GetMapping("/legal-holidays")

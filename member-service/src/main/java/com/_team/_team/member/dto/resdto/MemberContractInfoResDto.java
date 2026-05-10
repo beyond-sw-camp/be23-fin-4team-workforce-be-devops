@@ -17,4 +17,5 @@ public class MemberContractInfoResDto {
     private String sabun;
     private String organizationName;
     private String jobTitleName;
+    private String jobGradeName;
 }

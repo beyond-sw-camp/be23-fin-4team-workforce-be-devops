@@ -683,7 +683,8 @@ public class MemberService {
         log.info("Email: {}, TempPassword: {}", companyEmail, tempPassword);
 
         // 13. 임시 비밀번호 개인 이메일로 발송
-        mailService.sendTempPassword(reqDto.getPersonalEmail(), companyEmail, tempPassword);
+        // 데모 시드 부팅 가속 위해 임시 주석 - 운영 배포 시 풀기
+        // mailService.sendTempPassword(reqDto.getPersonalEmail(), companyEmail, tempPassword);
 
         // 14. 아웃박스 저장
         eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getMemberId()));
@@ -2072,6 +2073,7 @@ public class MemberService {
         // 현재 포지션에서 부서/직책 가져오기
         String orgName = null;
         String jobTitleName = null;
+        String jobGradeName = null;
 
         List<MemberPosition> positions = memberPositionRepository
                 .findActivePositionsByMemberIds(List.of(memberId));
@@ -2084,6 +2086,9 @@ public class MemberService {
             if (position.getJobTitle() != null) {
                 jobTitleName = position.getJobTitle().getName();
             }
+            if (position.getJobGrade() != null) {
+                jobGradeName = position.getJobGrade().getName();
+            }
         }
 
         return MemberContractInfoResDto.builder()
@@ -2092,6 +2097,7 @@ public class MemberService {
                 .sabun(member.getSabun())
                 .organizationName(orgName)
                 .jobTitleName(jobTitleName)
+                .jobGradeName(jobGradeName)
                 .build();
     }
 }

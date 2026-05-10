@@ -14,7 +14,7 @@ import java.util.UUID;
  * member-service 호출용 Feign 클라이언트.
  * 평가 결과 DTO 에 대상자/평가자 이름·소속·프로필을 채워넣기 위해 사용한다.
  */
-@FeignClient(name = "member-service", contextId = "goalServiceMemberClient", url = "${feign.url.member-service:}")
+@FeignClient(name = "member-service", contextId = "goalServiceMemberClient")
 public interface MemberServiceClient {
 
     /**

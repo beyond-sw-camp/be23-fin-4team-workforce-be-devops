@@ -264,6 +264,16 @@ public class OrganizationService {
                 .collect(Collectors.toList());
     }
 
+    // 회사별 직급 목록
+    @Transactional(readOnly = true)
+    public List<JobGradeResDto> getJobGradeListByCompany(UUID companyId) {
+        return jobGradeRepository
+                .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(companyId, "NO")
+                .stream()
+                .map(JobGradeResDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
     // 직급 수정
     public void updateJobGrade(UUID memberId, UUID jobGradeId, JobGradeReqDto reqDto) {
 

@@ -97,6 +97,16 @@ public class PayrollController {
                 HttpStatus.OK);
     }
 
+    // 회사 단위 처리 필요(지급전, 확정 상태인 급여) 급여대장 시간 무관 조회
+    @GetMapping("/admin/pending")
+    public ResponseEntity<?> listPendingByCompany(
+            @RequestHeader("X-User-CompanyId") UUID companyId) {
+        List<PayrollAdminListResDto> data = payrollService.listPendingByCompany(companyId);
+        return new ResponseEntity<>(
+                ApiResponse.success(data, "처리 필요 급여대장 조회 성공"),
+                HttpStatus.OK);
+    }
+
     // 일괄 확정 다중 선택 payrollIds 한 번에 처리
     @PostMapping("/bulk-confirm")
     public ResponseEntity<?> bulkConfirm(
@@ -273,6 +283,19 @@ public class PayrollController {
             @PathVariable UUID payrollId) {
         return new ResponseEntity<>(
                 ApiResponse.success(payrollService.payPayroll(companyId, payrollId), "급여가 지급 완료되었습니다."),
+                HttpStatus.OK
+        );
+    }
+
+    // 회사 그 월 직원별 수당 집계 - 회사 공통 + 개인 차등 모두 포함
+    @GetMapping("/admin/allowance-monthly")
+    public ResponseEntity<?> findMonthlyAllowance(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestParam("yearMonth") String yearMonth) {
+        YearMonth ym = YearMonth.parse(yearMonth);
+        return new ResponseEntity<>(
+                ApiResponse.success(payrollService.findMonthlyAllowanceByCompany(companyId, ym),
+                        "월별 직원 수당 집계 조회 성공"),
                 HttpStatus.OK
         );
     }

@@ -27,8 +27,8 @@ import java.util.UUID;
         name = "payroll",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_payroll_company_member_date",
-                        columnNames = {"companyId", "memberId", "payrollYearMonthDay"}
+                        name = "uk_payroll_company_member_date_type",
+                        columnNames = {"companyId", "memberId", "payrollYearMonthDay", "payrollType"}
                 )
         }
 )

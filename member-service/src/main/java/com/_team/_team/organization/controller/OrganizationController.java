@@ -7,6 +7,7 @@ import com._team._team.dto.ApiResponse;
 import com._team._team.organization.dto.reqdto.JobGradeReqDto;
 import com._team._team.organization.dto.reqdto.JobTitleReqDto;
 import com._team._team.organization.dto.reqdto.OrganizationReqDto;
+import com._team._team.organization.dto.resdto.JobGradeResDto;
 import com._team._team.organization.dto.resdto.OrganizationResDto;
 import com._team._team.organization.service.OrganizationService;
 import jakarta.validation.Valid;
@@ -267,5 +268,12 @@ public class OrganizationController {
     @GetMapping("/internal/{organizationId}/descendants")
     public List<UUID> findDescendantIdsInternal(@PathVariable UUID organizationId) {
         return organizationService.findDescendantIds(organizationId);
+    }
+
+    // 회사별 직급 목록
+    @GetMapping("/internal/job-grade/by-company")
+    public List<JobGradeResDto> getJobGradeListByCompanyInternal(
+            @RequestParam("companyId") UUID companyId) {
+        return organizationService.getJobGradeListByCompany(companyId);
     }
 }

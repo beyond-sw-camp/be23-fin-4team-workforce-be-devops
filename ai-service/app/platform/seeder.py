@@ -75,8 +75,7 @@ async def seed_platform_documents():
             existing = existing_map.get(file_name)
 
             # 기존 있고 내용 동일 → 스킵
-            # [임시] Fix 2 footer 적용 위해 1회 강제 재시드. 배포 확인 후 원복.
-            if False and existing and existing.content == content:
+            if existing and existing.content == content:
                 logger.info(
                     f"[platform_seeder] 변경 없음: {file_name}"
                 )

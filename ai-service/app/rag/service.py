@@ -8,6 +8,248 @@ logger = logging.getLogger(__name__)
 
 NO_CONTEXT_MARKER = "__NO_RELEVANT_DOCUMENT__"
 
+# ============================================================
+# 액션 가이드 라우팅 테이블
+# ------------------------------------------------------------
+# 액션 질문(어디서/어떻게/방법)은 임베딩 점수에만 의존하면 비슷한 청크들이
+# 1순위를 뒤집을 수 있다. 키워드 + 액션 매칭으로 정답 가이드를 강제 지정.
+#
+# 매칭 규칙:
+#   - subjects 중 하나라도 질문에 포함 AND
+#   - actions  중 하나라도 질문에 포함 AND
+#   - exclude  중 하나도 질문에 포함되지 않음
+#   → document_name 으로 라우팅 (해당 문서 청크만 임베딩 검색)
+#
+# 위에서 아래로 순서대로 평가하며 첫 매칭 시 stop. 따라서 더 구체적인 룰이 위.
+# ============================================================
+ACTION_GUIDE_ROUTES = [
+    # ---- [근태] guide_attendance.txt → /app/attendance ----
+    {
+        "name": "overtime_request",
+        "subjects": ["야근", "초과근무", "연장근무", "잔근", "야간근로", "휴일근로"],
+        "actions": ["신청", "어디", "어떻게", "방법", "올려", "제출"],
+        "exclude": ["수당", "얼마"],
+        "document_name": "guide_attendance.txt",
+    },
+    {
+        "name": "attendance_correction",
+        "subjects": ["근태 정정", "근태정정", "출근 누락", "퇴근 누락",
+                     "출근 정정", "퇴근 정정", "출퇴근 정정"],
+        "actions": ["신청", "어디", "어떻게", "방법", "처리", "수정"],
+        "exclude": [],
+        "document_name": "guide_attendance.txt",
+    },
+    {
+        "name": "leave_balance_view",
+        "subjects": ["잔여 휴가", "잔여 연차", "남은 휴가", "남은 연차",
+                     "휴가 잔여", "연차 잔여", "내 휴가", "내 연차",
+                     "사용한 휴가", "사용한 연차", "휴가 이력", "연차 이력"],
+        "actions": ["어디", "어떻게", "조회", "확인", "봐", "보기", "보려"],
+        "exclude": [],
+        "document_name": "guide_attendance.txt",
+    },
+    {
+        "name": "attendance_record_view",
+        "subjects": ["출퇴근 기록", "출근 기록", "퇴근 기록", "내 근태", "근태",
+                     "주간 근무시간", "월간 근무시간", "근무시간 한도"],
+        "actions": ["어디", "어떻게", "조회", "확인", "봐", "보기"],
+        "exclude": ["스케줄", "점심"],
+        "document_name": "guide_attendance.txt",
+    },
+    {
+        "name": "checkin_checkout",
+        "subjects": ["출근", "퇴근"],
+        "actions": ["찍", "어디", "어떻게", "방법"],
+        "exclude": ["기록", "시간 몇", "수당", "스케줄", "정정", "누락"],
+        "document_name": "guide_attendance.txt",
+    },
+
+    # ---- [근태] guide_attendance_schedule.txt → /app/attendance/schedules/my ----
+    {
+        "name": "schedule_change",
+        "subjects": ["스케줄 변경", "근무 시간 변경"],
+        "actions": ["신청", "어디", "어떻게", "방법"],
+        "exclude": [],
+        "document_name": "guide_attendance_schedule.txt",
+    },
+    {
+        "name": "schedule_view",
+        "subjects": ["근무 스케줄", "내 스케줄", "스케줄",
+                     "점심 시간", "점심시간", "주간 근로시간", "1주 근로시간"],
+        "actions": ["어디", "어떻게", "조회", "확인", "봐", "보기"],
+        "exclude": [],
+        "document_name": "guide_attendance_schedule.txt",
+    },
+
+    # ---- [결재] guide_approval_my.txt → /app/approvals (내 기안 문서) ----
+    {
+        "name": "my_approvals",
+        "subjects": ["내가 올린 결재", "내 기안", "내가 신청한 결재",
+                     "결재 진행 상태", "결재 회수", "임시 저장한",
+                     "임시저장한", "임시 저장함", "반려된 결재"],
+        "actions": ["어디", "어떻게", "봐", "조회", "확인", "회수", "다시"],
+        "exclude": [],
+        "document_name": "guide_approval_my.txt",
+    },
+
+    # ---- [결재] guide_approval_pending.txt → /app/approvals (결재 대기) ----
+    {
+        "name": "pending_approvals",
+        "subjects": ["결재 대기", "내가 결재", "결재할 문서",
+                     "결재할 거", "결재 알림"],
+        "actions": ["어디", "어떻게", "봐", "처리", "승인", "반려"],
+        "exclude": [],
+        "document_name": "guide_approval_pending.txt",
+    },
+
+    # ---- [결재] guide_approval_compose.txt → /app/approvals (결재 작성) ----
+    {
+        "name": "leave_request",
+        "subjects": ["휴가", "연차", "반차", "병가", "경조",
+                     "출산 휴가", "예비군 휴가", "민방위 휴가", "결혼 휴가"],
+        "actions": ["신청", "올려", "제출"],
+        "exclude": ["며칠", "얼마", "유급", "잔여", "남은", "이력",
+                    "사용한", "수당"],
+        "document_name": "guide_approval_compose.txt",
+    },
+    {
+        "name": "other_approval",
+        "subjects": ["사직서", "출장", "휴직", "공문",
+                     "업무기안", "업무보고서", "근로계약서",
+                     "수당 변경", "출퇴근시간 변경"],
+        "actions": ["작성", "신청", "어디", "어떻게", "올려", "제출"],
+        "exclude": [],
+        "document_name": "guide_approval_compose.txt",
+    },
+    {
+        "name": "approval_general",
+        "subjects": ["결재"],
+        "actions": ["올려", "올리기", "올리는", "작성",
+                    "어떻게 작성", "어떻게 올려", "어디서 작성",
+                    "어디서 시작", "처음 어떻게", "방법", "양식"],
+        "exclude": ["대기", "내가 결재", "내가 올린", "내 기안",
+                    "진행 상태", "회수", "반려"],
+        "document_name": "guide_approval_compose.txt",
+    },
+
+    # ---- [평가] /app/evaluations ----
+    {
+        "name": "self_evaluation",
+        "subjects": ["자기평가", "자기 평가", "내 평가 작성"],
+        "actions": ["어디", "어떻게", "작성", "방법", "쓰", "입력"],
+        "exclude": [],
+        "document_name": "guide_evaluation_self.txt",
+    },
+    {
+        "name": "calibration",
+        "subjects": ["캘리브레이션"],
+        "actions": ["어디", "어떻게", "처리", "방법"],
+        "exclude": [],
+        "document_name": "guide_evaluation_calibration.txt",
+    },
+    {
+        "name": "evaluation_season",
+        "subjects": ["평가 시즌", "시즌 단계", "평가 단계", "시즌 진행"],
+        "actions": ["어디", "어떻게", "확인", "봐", "조회"],
+        "exclude": [],
+        "document_name": "guide_evaluation_lifecycle.txt",
+    },
+
+    # ---- [목표] /app/performance ----
+    {
+        "name": "goal_approval",
+        "subjects": ["목표 승인", "목표 승인 요청", "목표 승인 처리"],
+        "actions": ["어디", "어떻게", "방법", "처리", "요청"],
+        "exclude": [],
+        "document_name": "guide_goal_approval.txt",
+    },
+    {
+        "name": "org_goal",
+        "subjects": ["조직 목표", "팀 목표"],
+        "actions": ["작성", "생성", "어디", "어떻게", "만들"],
+        "exclude": [],
+        "document_name": "guide_goal_org.txt",
+    },
+    {
+        "name": "personal_goal",
+        "subjects": ["개인 목표", "내 목표"],
+        "actions": ["작성", "어디", "어떻게", "방법"],
+        "exclude": [],
+        "document_name": "guide_goal_personal.txt",
+    },
+
+    # ---- [면담] guide_meeting.txt → /app/meetings ----
+    {
+        "name": "meeting",
+        "subjects": ["면담", "1:1 면담", "평가 면담"],
+        "actions": ["어디", "어떻게", "잡아", "등록", "기록", "작성"],
+        "exclude": [],
+        "document_name": "guide_meeting.txt",
+    },
+
+    # ---- [내 정보] guide_my_info.txt → /app/me ----
+    {
+        "name": "my_account",
+        "subjects": ["계좌", "계좌번호", "은행", "통장", "급여 계좌"],
+        "actions": ["수정", "변경", "바꾸", "어디", "어떻게", "등록"],
+        "exclude": [],
+        "document_name": "guide_my_info.txt",
+    },
+    {
+        "name": "my_info",
+        "subjects": ["내 정보", "프로필", "마이페이지",
+                     "휴대폰", "핸드폰", "전화번호", "연락처", "비상연락처",
+                     "주소", "거주지", "내선번호", "직통번호",
+                     "프로필 사진", "프로필사진"],
+        "actions": ["수정", "변경", "바꾸", "어디", "어떻게", "등록"],
+        "exclude": [],
+        "document_name": "guide_my_info.txt",
+    },
+
+    # ---- [급여] /app/payroll ----
+    {
+        "name": "annual_salary",
+        "subjects": ["연봉", "호봉", "직급"],
+        "actions": ["어디", "어떻게", "조회", "확인", "봐", "보기"],
+        "exclude": ["호봉표"],
+        "document_name": "guide_payroll_annual.txt",
+    },
+    {
+        "name": "payroll",
+        "subjects": ["급여", "월급", "급여명세서", "월급명세서",
+                     "명세서", "봉급", "실수령액", "급여 명세", "월급 명세"],
+        "actions": ["어디", "어떻게", "조회", "확인", "봐", "보기", "다운로드"],
+        "exclude": ["언제", "지급일", "들어와"],
+        "document_name": "guide_payroll.txt",
+    },
+]
+
+
+def route_to_guide(question: str) -> str | None:
+    """
+    질문에서 ACTION_GUIDE_ROUTES 룰을 평가해 강제 라우팅할 문서명 반환.
+    매칭 안 되면 None → 기존 임베딩 검색으로 폴백.
+    """
+    if not question:
+        return None
+    q = question.strip()
+
+    for route in ACTION_GUIDE_ROUTES:
+        if any(ex in q for ex in route["exclude"]):
+            continue
+        if not any(s in q for s in route["subjects"]):
+            continue
+        if not any(a in q for a in route["actions"]):
+            continue
+
+        logger.info(
+            f"[route_to_guide] '{question}' → "
+            f"{route['name']} ({route['document_name']})"
+        )
+        return route["document_name"]
+
+    return None
+
 
 # Layer 우선순위 (높을수록 우선)
 LAYER_PRIORITY = {
@@ -146,13 +388,32 @@ async def rag_search(
         # layer 우선순위 재정렬
         matches = apply_layer_priority(raw_matches, final_top_k=5)
 
+    # 카테고리 미감지(액션 가이드 질문) → 라우팅 시도
+    if not matches and not category:
+        routed_doc = route_to_guide(question)
+        if routed_doc:
+            logger.info(
+                f"[rag_search] 라우트 매칭 → {routed_doc} 문서로 한정 검색"
+            )
+            raw_matches = await asyncio.to_thread(
+                search_vectors,
+                query_vector,
+                company_id,
+                top_k=5,
+                min_score=0.30,
+                category=None,
+                include_platform=True,
+                document_name=routed_doc,
+            )
+            matches = apply_layer_priority(raw_matches, final_top_k=3)
+
     if not matches:
         if category:
             logger.info(
                 f"[rag_search] 카테고리({category}) 매칭 없음, 전체 검색"
             )
         else:
-            logger.info(f"[rag_search] 카테고리 미감지, 전체 검색")
+            logger.info(f"[rag_search] 라우트 미매칭/매칭 없음, 전체 검색")
 
         raw_matches = await asyncio.to_thread(
             search_vectors,

@@ -22,12 +22,14 @@ def search_vectors(
         top_k: int = 5,
         min_score: float = 0.35,
         category: str | None = None,
-        include_platform: bool = True) -> list[dict]:
+        include_platform: bool = True,
+        document_name: str | None = None) -> list[dict]:
     """
     Pinecone 벡터 검색.
 
     Args:
         include_platform: True면 플랫폼 공통 문서도 함께 검색 (기본 True)
+        document_name: 지정 시 해당 문서명의 청크만 검색 (라우팅 용도)
     """
     # 회사 ID 필터
     if include_platform:
@@ -40,6 +42,8 @@ def search_vectors(
     filter_dict = company_filter.copy()
     if category:
         filter_dict["category"] = {"$eq": category}
+    if document_name:
+        filter_dict["document_name"] = {"$eq": document_name}
 
     logger.info(
         f"[search_vectors] top_k={top_k}, min_score={min_score}, "

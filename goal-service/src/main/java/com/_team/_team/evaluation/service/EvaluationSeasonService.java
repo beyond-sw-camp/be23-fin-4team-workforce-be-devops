@@ -1,6 +1,7 @@
 package com._team._team.evaluation.service;
 
 import com._team._team.dto.BusinessException;
+import com._team._team.dto.NotificationMessage;
 import com._team._team.evaluation.domain.EvaluationResponse;
 import com._team._team.evaluation.domain.EvaluationSeason;
 import com._team._team.evaluation.domain.enums.EvaluationStage;
@@ -18,6 +19,9 @@ import com._team._team.goal.domain.enums.KpiCycle;
 import com._team._team.goal.feignclients.MemberServiceClient;
 import com._team._team.goal.feignclients.dto.MemberOrgContextDto;
 import com._team._team.meeting.service.MeetingRecordService;
+import com._team._team.notification.NotificationType;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class EvaluationSeasonService {
 
@@ -38,19 +43,22 @@ public class EvaluationSeasonService {
     private final SeasonActivationService activationService;
     private final MeetingRecordService meetingRecordService;
     private final MemberServiceClient memberServiceClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     public EvaluationSeasonService(EvaluationSeasonRepository seasonRepository,
                                    EvaluationResponseRepository responseRepository,
                                    EvaluationGroupRepository groupRepository,
                                    SeasonActivationService activationService,
                                    MeetingRecordService meetingRecordService,
-                                   MemberServiceClient memberServiceClient) {
+                                   MemberServiceClient memberServiceClient,
+                                   ApplicationEventPublisher eventPublisher) {
         this.seasonRepository = seasonRepository;
         this.responseRepository = responseRepository;
         this.groupRepository = groupRepository;
         this.activationService = activationService;
         this.meetingRecordService = meetingRecordService;
         this.memberServiceClient = memberServiceClient;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -163,6 +171,28 @@ public class EvaluationSeasonService {
 
         season.publishResults();
         meetingRecordService.createFeedbackMeetingsForSeason(seasonId, companyId);
+
+        notifyAdminsForBonusBatch(season, companyId);
+    }
+
+    // 평가 결과 공개 직후 인사 시스템 관리자에게 성과급 발행 안내 알림
+    private void notifyAdminsForBonusBatch(EvaluationSeason season, UUID companyId) {
+        List<UUID> adminIds = memberServiceClient.findAdminMemberIds(companyId);
+        if (adminIds.isEmpty()) return;
+
+        String content = "[" + season.getName() + "] 평가 결과가 공개되었습니다. 성과급 발행을 진행하세요.";
+        for (UUID adminId : adminIds) {
+            eventPublisher.publishEvent(NotificationMessage.builder()
+                    .receiverId(adminId)
+                    .senderId(null)
+                    .notificationType(NotificationType.EVALUATION_RESULTS_PUBLISHED)
+                    .content(content)
+                    .targetId(season.getSeasonId())
+                    .targetType("EVALUATION_SEASON")
+                    .build());
+        }
+        log.info("[EVAL-NOTIFY] 평가 결과 공개 알림 발송 companyId={} seasonId={} adminCount={}",
+                companyId, season.getSeasonId(), adminIds.size());
     }
 
     @Transactional

@@ -42,6 +42,7 @@ public class EvaluationSeasonController {
     private final EvaluationResponseService responseService;
     private final EvaluationAccessScopeService accessScopeService;
 
+
     public EvaluationSeasonController(EvaluationSeasonService seasonService,
                                       EvaluationGroupTranslator groupTranslator,
                                       MeetingRecordService meetingRecordService,

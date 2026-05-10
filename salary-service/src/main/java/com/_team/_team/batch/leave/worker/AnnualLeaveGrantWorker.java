@@ -124,6 +124,10 @@ public class AnnualLeaveGrantWorker {
         Map<UUID, MemberLeaveOfAbsence> loaMap = loadActiveLeaveOfAbsenceMap(companyId, baseDate);
 
         List<MemberResDto> memberResDtos = fetchMembers(companyId);
+
+        // 이월 처리, 신규 ANNUAL 부여 직전에 직전 잔여 -> CARRYOVER 변환
+        processCarryoverForHireDate(policy, baseDate, grantDate, expirationDate, memberResDtos);
+
         List<MemberBalance> buffer = new ArrayList<>(BATCH_SIZE);
 
         for (MemberResDto memberResDto : memberResDtos) {
@@ -173,6 +177,79 @@ public class AnnualLeaveGrantWorker {
         memberBalanceRepository.flush();
         entityManager.clear();
         buffer.clear();
+    }
+
+    /**
+     * 휴가부여정책 중 입사기념일 도래자 대상 이월 처리
+     * 직전 ANNUAL 만료일 = baseDate - 1 (입사기념일 전날)
+     */
+    private void processCarryoverForHireDate(
+            LeavePolicy policy,
+            LocalDate baseDate,
+            LocalDate newGrantDate,
+            LocalDate newExpirationDate,
+            List<MemberResDto> members) {
+
+        if (!"Y".equals(policy.getIsCarryoverYn())) return;
+        if (policy.getCarryoverDays() == null || policy.getCarryoverDays() <= 0) return;
+
+        UUID companyId = policy.getCompanyId();
+        int carryoverCap = policy.getCarryoverDays();
+        boolean requireConsent = "Y".equals(policy.getIsCarryoverConsentYn());
+
+        // 직전 ANNUAL 만료일 = 입사기념일 전날
+        LocalDate prevExpiration = baseDate.minusDays(1);
+
+        // 신규 부여 만료일 범위로 이미 CARRYOVER 받은 사람 제외
+        Set<UUID> alreadyCarried = memberBalanceRepository.findGrantedMemberIds(
+                companyId, BalanceType.CARRYOVER, newGrantDate, newExpirationDate);
+
+        // 직전 연차 잔고 - 만료일 = baseDate - 1 인 것만
+        List<MemberBalance> prevAnnuals = memberBalanceRepository
+                .findActiveBalancesByCompanyAndTypeAndExpiration(
+                        companyId, BalanceType.ANNUAL, prevExpiration, prevExpiration);
+
+        Map<UUID, MemberBalance> prevByMember = prevAnnuals.stream()
+                .collect(Collectors.toMap(
+                        MemberBalance::getMemberId, b -> b, (a, b) -> a));
+
+        List<MemberBalance> buffer = new ArrayList<>(BATCH_SIZE);
+
+        for (MemberResDto m : members) {
+            if (m.getJoinDate() == null) continue;
+            // 입사기념일 도래자만 대상
+            if (!isAnniversary(m.getJoinDate(), baseDate)) continue;
+
+            UUID memberId = m.getMemberId();
+            if (alreadyCarried.contains(memberId)) continue;
+
+            MemberBalance prev = prevByMember.get(memberId);
+            if (prev == null || prev.getRemaining() == null || prev.getRemaining() <= 0) continue;
+            if (requireConsent && !prev.isCarryoverConsented()) continue;
+
+            double carryDays = Math.min(prev.getRemaining(), carryoverCap);
+            if (carryDays <= 0) continue;
+
+            buffer.add(MemberBalance.builder()
+                    .memberId(memberId)
+                    .companyId(companyId)
+                    .balanceType(BalanceType.CARRYOVER)
+                    .totalGranted(carryDays)
+                    .totalUsed(0.0)
+                    .remaining(carryDays)
+                    .expirationDate(newExpirationDate)
+                    .isUsableYn("Y")
+                    .isExpireYn("N")
+                    .delYn("N")
+                    .build());
+
+            if (buffer.size() >= BATCH_SIZE) {
+                flushBuffer(buffer);
+            }
+        }
+        if (!buffer.isEmpty()) {
+            flushBuffer(buffer);
+        }
     }
 
     /**

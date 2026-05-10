@@ -88,6 +88,10 @@ public class Member extends BaseTimeEntity {
     @Column(nullable = false)
     private EmploymentType employmentType;
 
+    /** 계약 만료일 - 계약직일 때 */
+    @Column
+    private LocalDate contractEndDate;
+
     @Column(nullable = false)
     @Builder.Default
     private Integer loginFailCount = 0;

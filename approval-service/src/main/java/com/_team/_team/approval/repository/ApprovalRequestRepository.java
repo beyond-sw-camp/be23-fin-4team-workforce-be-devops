@@ -1,5 +1,6 @@
 package com._team._team.approval.repository;
 
+import com._team._team.approval.domain.Approval;
 import com._team._team.approval.domain.ApprovalRequest;
 import com._team._team.approval.domain.enums.RequestStatus;
 import com._team._team.approval.domain.enums.RequestType;

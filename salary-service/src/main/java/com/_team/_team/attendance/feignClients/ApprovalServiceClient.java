@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@FeignClient(name = "approval-service", url = "${feign.url.approval-service:}")
+@FeignClient(name = "approval-service")
 public interface ApprovalServiceClient {
 
     /**

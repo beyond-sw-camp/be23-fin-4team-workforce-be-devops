@@ -9,7 +9,6 @@ import com._team._team.approval.publisher.RagSyncApprovalEventPublisher;
 import com._team._team.approval.repository.ApprovalDocumentRepository;
 import com._team._team.dto.BusinessException;
 import com._team._team.event.RagSyncApprovalEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Map;
-import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,22 +26,16 @@ import java.util.UUID;
 public class ApprovalDocumentService {
 
     private final ApprovalDocumentRepository approvalDocumentRepository;
-    private final ObjectMapper objectMapper;
     private final RagSyncApprovalEventPublisher ragSyncApprovalEventPublisher;
 
     @Autowired
     public ApprovalDocumentService(ApprovalDocumentRepository approvalDocumentRepository,
-                                   ObjectMapper objectMapper,
                                    RagSyncApprovalEventPublisher ragSyncApprovalEventPublisher) {
         this.approvalDocumentRepository = approvalDocumentRepository;
-        this.objectMapper = objectMapper;
         this.ragSyncApprovalEventPublisher = ragSyncApprovalEventPublisher;
     }
 
     public void initDefaultDocuments(UUID companyId) {
-        if (!approvalDocumentRepository.findByCompanyIdAndIsActiveYn(companyId, "Y").isEmpty()) {
-            return;
-        }
 
         // ========== VACATION ==========
         approvalDocumentRepository.save(ApprovalDocument.builder()
@@ -198,7 +188,6 @@ public class ApprovalDocumentService {
                       "required": true
                     },
                     { "name": "amount",         "label": "신청 금액", "type": "number",   "required": true },
-                    { "name": "effectiveFrom",  "label": "적용 시작일","type": "date",    "required": true },
                     { "name": "reason",         "label": "신청 사유", "type": "textarea"                   },
                     { "name": "memberAllowanceId", "label": "salary 연결 ID", "type": "hidden"            }
                   ]
@@ -242,16 +231,14 @@ public class ApprovalDocumentService {
                 .formSchema("""
                 {
                   "fields": [
-                    { "name": "title",            "label": "제목",                   "type": "text",     "required": true },
-                    { "name": "tripStartDate",    "label": "출장 시작일",             "type": "date",     "required": true },
-                    { "name": "tripEndDate",      "label": "출장 종료일",             "type": "date",     "required": true },
-                    { "name": "destination",      "label": "출장지",                  "type": "text",     "required": true },
-                    { "name": "transportation",   "label": "교통편",                  "type": "text",     "required": true },
-                    { "name": "purpose",          "label": "출장목적",                "type": "textarea", "required": true },
-                    { "name": "travelers",        "label": "출장자(성명/직급/소속)",   "type": "textarea", "required": true },
-                    { "name": "accommodationFee", "label": "숙박비",                  "type": "number"                    },
-                    { "name": "mealFee",          "label": "식비",                    "type": "number"                    },
-                    { "name": "note",             "label": "비고",                    "type": "textarea"                  }
+                    { "name": "title",            "label": "제목",          "type": "text",     "required": true },
+                    { "name": "tripStartDate",    "label": "출장 시작일",    "type": "date",     "required": true },
+                    { "name": "tripEndDate",      "label": "출장 종료일",    "type": "date",     "required": true },
+                    { "name": "destination",      "label": "출장지",         "type": "text",     "required": true },
+                    { "name": "purpose",          "label": "출장목적",       "type": "textarea", "required": true },
+                    { "name": "accommodationFee", "label": "숙박비",         "type": "number"                    },
+                    { "name": "mealFee",          "label": "식비",           "type": "number"                    },
+                    { "name": "note",             "label": "비고",           "type": "textarea"                  }
                   ]
                 }
             """)
@@ -269,21 +256,15 @@ public class ApprovalDocumentService {
                 .formSchema("""
                 {
                   "fields": [
-                    { "name": "title",                   "label": "제목",                       "type": "text",     "required": true },
-                    { "name": "tripStartDate",           "label": "출장 시작일",                 "type": "date",     "required": true },
-                    { "name": "tripEndDate",             "label": "출장 종료일",                 "type": "date",     "required": true },
-                    { "name": "destinationCountry",      "label": "출장국가",                    "type": "text",     "required": true },
-                    { "name": "destination",             "label": "출장지",                      "type": "text",     "required": true },
-                    { "name": "transportation",          "label": "교통편",                      "type": "text",     "required": true },
-                    { "name": "purpose",                 "label": "출장목적",                    "type": "textarea", "required": true },
-                    { "name": "travelers",               "label": "출장자(사번/성명/직급/소속)",  "type": "textarea", "required": true },
-                    { "name": "foreignAccommodationFee", "label": "외화 숙박비",                 "type": "number"                    },
-                    { "name": "foreignDailyFee",         "label": "외화 일당",                   "type": "number"                    },
-                    { "name": "exchangeRate",            "label": "환율",                        "type": "number"                    },
-                    { "name": "krwAccommodationFee",     "label": "원화 숙박비",                 "type": "number"                    },
-                    { "name": "krwDailyFee",             "label": "원화 일당",                   "type": "number"                    },
-                    { "name": "cashFee",                 "label": "현금",                        "type": "number"                    },
-                    { "name": "note",                    "label": "비고",                        "type": "textarea"                  }
+                    { "name": "title",               "label": "제목",          "type": "text",     "required": true },
+                    { "name": "tripStartDate",       "label": "출장 시작일",    "type": "date",     "required": true },
+                    { "name": "tripEndDate",         "label": "출장 종료일",    "type": "date",     "required": true },
+                    { "name": "destinationCountry",  "label": "출장국가",       "type": "text",     "required": true },
+                    { "name": "destination",         "label": "출장지",         "type": "text",     "required": true },
+                    { "name": "purpose",             "label": "출장목적",       "type": "textarea", "required": true },
+                    { "name": "accommodationFee",    "label": "숙박비(원)",     "type": "number"                    },
+                    { "name": "mealFee",             "label": "식비(원)",       "type": "number"                    },
+                    { "name": "note",                "label": "비고",           "type": "textarea"                  }
                   ]
                 }
             """)
@@ -424,9 +405,6 @@ public class ApprovalDocumentService {
             throw new BusinessException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
         }
 
-        // locked 필드 검증
-        validateLockedFields(document.getFormSchema(), reqDto.getFormSchema());
-
         // formSchema 업데이트
         document.updateFormSchema(reqDto.getFormSchema());
 
@@ -470,89 +448,6 @@ public class ApprovalDocumentService {
                 throw new BusinessException(HttpStatus.BAD_REQUEST,
                         "캘린더 연동 시 시작일 필드는 필수입니다.");
             }
-        }
-    }
-
-    /**
-     * locked 필드 검증
-     * 기존 formSchema에서 locked:true 인 필드가
-     * 새 formSchema에서 빠지거나, name/label/type/순서가 변경되었는지 확인
-     */
-    private void validateLockedFields(String oldSchemaJson, String newSchemaJson) {
-        try {
-            Map<String, Object> oldSchema = objectMapper.readValue(
-                    oldSchemaJson, new TypeReference<>() {});
-            Map<String, Object> newSchema = objectMapper.readValue(
-                    newSchemaJson, new TypeReference<>() {});
-
-            List<Map<String, Object>> oldFields = (List<Map<String, Object>>) oldSchema.get("fields");
-            List<Map<String, Object>> newFields = (List<Map<String, Object>>) newSchema.get("fields");
-
-            if (oldFields == null) return;
-
-            // locked 필드만 추출
-            List<Map<String, Object>> lockedFields = new ArrayList<>();
-            for (Map<String, Object> field : oldFields) {
-                Boolean locked = (Boolean) field.getOrDefault("locked", false);
-                if (Boolean.TRUE.equals(locked)) {
-                    lockedFields.add(field);
-                }
-            }
-
-            if (lockedFields.isEmpty()) return;
-
-            if (newFields == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST,
-                        "필수 항목이 포함된 formSchema가 필요합니다.");
-            }
-
-            // 새 formSchema에서 locked 필드 순서·내용 검증
-            int newIndex = 0;
-            for (Map<String, Object> locked : lockedFields) {
-                String lockedName = (String) locked.get("name");
-                String lockedLabel = (String) locked.get("label");
-                String lockedType = (String) locked.get("type");
-
-                boolean found = false;
-                for (int ni = newIndex; ni < newFields.size(); ni++) {
-                    Map<String, Object> newField = newFields.get(ni);
-                    if (lockedName.equals(newField.get("name"))) {
-                        // label 변경 검증
-                        if (!lockedLabel.equals(newField.get("label"))) {
-                            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                                    "필수 항목 '" + lockedLabel + "'의 이름(label)은 변경할 수 없습니다.");
-                        }
-                        // type 변경 검증
-                        if (!lockedType.equals(newField.get("type"))) {
-                            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                                    "필수 항목 '" + lockedLabel + "'의 타입(type)은 변경할 수 없습니다.");
-                        }
-                        // locked 플래그 유지 검증
-                        Boolean newLocked = (Boolean) newField.getOrDefault("locked", false);
-                        if (!Boolean.TRUE.equals(newLocked)) {
-                            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                                    "필수 항목 '" + lockedLabel + "'의 잠금 상태는 해제할 수 없습니다.");
-                        }
-                        // 순서 검증: locked 필드끼리의 상대 순서 유지
-                        if (ni < newIndex) {
-                            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                                    "필수 항목의 순서는 변경할 수 없습니다.");
-                        }
-                        newIndex = ni + 1;
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    throw new BusinessException(HttpStatus.BAD_REQUEST,
-                            "필수 항목 '" + lockedLabel + "'은(는) 삭제할 수 없습니다.");
-                }
-            }
-
-        } catch (JsonProcessingException e) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST,
-                    "formSchema JSON 형식이 올바르지 않습니다.");
         }
     }
 

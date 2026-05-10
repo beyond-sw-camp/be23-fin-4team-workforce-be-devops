@@ -55,6 +55,9 @@ public class Approval extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String signatureImageUrl;
 
+    @Column
+    private String approverName;
+
     @Builder.Default
     @Column(nullable = false)
     private String isSignedYn = "N";

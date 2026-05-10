@@ -9,10 +9,10 @@ import com._team._team.approval.service.ApprovalRequestService;
 import com._team._team.dto.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -142,6 +142,27 @@ public class ApprovalRequestController {
                 ApiResponse.success(resDto, "공문이 발송되었습니다."),
                 HttpStatus.OK
         );
+    }
+
+    @GetMapping("/{requestId}/pdf")
+    public ResponseEntity<byte[]> downloadPdf(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @PathVariable UUID requestId) {
+
+        byte[] pdf = approvalRequestService.downloadPdf(companyId, memberId, requestId);
+
+        String filename = "approval-" + requestId + ".pdf";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentLength(pdf.length);
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(filename, StandardCharsets.UTF_8)
+                        .build());
+
+        return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     }
 
 }

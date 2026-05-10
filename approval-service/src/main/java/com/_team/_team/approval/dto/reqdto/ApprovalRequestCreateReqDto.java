@@ -48,6 +48,8 @@ public class ApprovalRequestCreateReqDto {
 
         @NotNull
         private UUID approverMemberPositionId;
+
+        private String approverName;
     }
 
     @AllArgsConstructor
@@ -78,5 +80,7 @@ public class ApprovalRequestCreateReqDto {
         @NotNull(message = "수신 부서명은 필수입니다.")
         private String recipientOrganizationName;
     }
+
+
 
 }

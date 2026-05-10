@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
-@FeignClient(name = "approval-service", url = "${feign.url.approval-service:}") //로컬용 + k8s 배포 시 유레카 적용 x
+@FeignClient(name = "approval-service")
 public interface ApprovalServiceClient {
 
     @PostMapping("/approval/documents/init")

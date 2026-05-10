@@ -18,6 +18,7 @@ import com._team._team.approval.publisher.EarlyLeaveSubmittedEventPublisher;
 import com._team._team.approval.repository.*;
 import com._team._team.dto.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -66,10 +67,11 @@ public class ApprovalRequestService {
     private final AttendanceCorrectionApprovalEventPublisher attendanceCorrectionApprovalEventPublisher;
     private final EarlyLeaveSubmittedEventPublisher earlyLeaveSubmittedEventPublisher;
     private final EarlyLeaveApprovalEventPublisher earlyLeaveApprovalEventPublisher;
+    private final ApprovalPdfService approvalPdfService;
 
 
     @Autowired
-    public ApprovalRequestService(ApprovalRequestRepository approvalRequestRepository, ApprovalDocumentRepository approvalDocumentRepository, ApprovalRepository approvalRepository, ApprovalViewerRepository approvalViewerRepository, AttachmentService attachmentService, MemberServiceClient memberServiceClient, ApprovalNotificationService approvalNotificationService, OfficialRecipientRepository officialRecipientRepository, OfficialNumberService officialNumberService, ApplicationEventPublisher eventPublisher, ApprovalSearchOutboxRepository approvalSearchOutboxRepository, ObjectMapper objectMapper, AttendanceCorrectionSubmittedEventPublisher attendanceCorrectionSubmittedEventPublisher, AttendanceCorrectionApprovalEventPublisher attendanceCorrectionApprovalEventPublisher, EarlyLeaveSubmittedEventPublisher earlyLeaveSubmittedEventPublisher, EarlyLeaveApprovalEventPublisher earlyLeaveApprovalEventPublisher) {
+    public ApprovalRequestService(ApprovalRequestRepository approvalRequestRepository, ApprovalDocumentRepository approvalDocumentRepository, ApprovalRepository approvalRepository, ApprovalViewerRepository approvalViewerRepository, AttachmentService attachmentService, MemberServiceClient memberServiceClient, ApprovalNotificationService approvalNotificationService, OfficialRecipientRepository officialRecipientRepository, OfficialNumberService officialNumberService, ApplicationEventPublisher eventPublisher, ApprovalSearchOutboxRepository approvalSearchOutboxRepository, ObjectMapper objectMapper, AttendanceCorrectionSubmittedEventPublisher attendanceCorrectionSubmittedEventPublisher, AttendanceCorrectionApprovalEventPublisher attendanceCorrectionApprovalEventPublisher, EarlyLeaveSubmittedEventPublisher earlyLeaveSubmittedEventPublisher, EarlyLeaveApprovalEventPublisher earlyLeaveApprovalEventPublisher, ApprovalPdfService approvalPdfService) {
         this.approvalRequestRepository = approvalRequestRepository;
         this.approvalDocumentRepository = approvalDocumentRepository;
         this.approvalRepository = approvalRepository;
@@ -86,6 +88,7 @@ public class ApprovalRequestService {
         this.attendanceCorrectionApprovalEventPublisher = attendanceCorrectionApprovalEventPublisher;
         this.earlyLeaveSubmittedEventPublisher = earlyLeaveSubmittedEventPublisher;
         this.earlyLeaveApprovalEventPublisher = earlyLeaveApprovalEventPublisher;
+        this.approvalPdfService = approvalPdfService;
     }
 
 //    결재요청 생성(결재라인 + 참조/공람자 포함)
@@ -231,6 +234,7 @@ public class ApprovalRequestService {
                             .request(savedRequest)
                             .approverMemberId(line.getApproverMemberId())
                             .approverMemberPositionId(line.getApproverMemberPositionId())
+                            .approverName(line.getApproverName())
                             .stepOrder(line.getStepOrder())
                             .approvalStatus(reqDto.getRequestStatus() == RequestStatus.WAIT && line.getStepOrder() == 1
                                     ? LineStatus.PENDING
@@ -559,6 +563,7 @@ public class ApprovalRequestService {
                             .request(request)
                             .approverMemberId(line.getApproverMemberId())
                             .approverMemberPositionId(line.getApproverMemberPositionId())
+                            .approverName(line.getApproverName())
                             .stepOrder(line.getStepOrder())
                             .approvalStatus(reqDto.getRequestStatus() == RequestStatus.WAIT && line.getStepOrder() == 1
                                     ? LineStatus.PENDING
@@ -1115,5 +1120,29 @@ public ApprovalRequestResDto sendOfficial(UUID companyId, UUID memberId, UUID me
         } catch (Exception e) {
             log.error("ApprovalSearchOutboxDeleteEvent 저장 실패: {}", e.getMessage());
         }
+    }
+
+    // 결재 문서 PDF 다운로드
+    @Transactional(readOnly = true)
+    public byte[] downloadPdf(UUID companyId, UUID memberId, UUID requestId) {
+        ApprovalRequest request = approvalRequestRepository.findByIdWithDocument(requestId)
+                .orElseThrow(() -> new EntityNotFoundException("결재 문서를 찾을 수 없습니다."));
+
+        // 임시저장 문서는 다운로드 불가
+        if (request.getRequestStatus() == RequestStatus.DRAFT) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "임시저장 문서는 다운로드할 수 없습니다.");
+        }
+
+        List<Approval> approvalLines = approvalRepository.findByRequestIdWithRequest(requestId);
+
+        boolean isRequester = request.getMemberId().equals(memberId);
+        boolean isApprover = approvalLines.stream()
+                .anyMatch(a -> a.getApproverMemberId().equals(memberId));
+
+        if (!isRequester && !isApprover) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+
+        return approvalPdfService.buildPdf(request, approvalLines);
     }
 }

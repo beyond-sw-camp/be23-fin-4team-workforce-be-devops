@@ -27,6 +27,7 @@ public class ApprovalLineResDto {
     private String isSignedYn;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String approverName;
 
     // --- 대결 관련 ---
     private UUID actualApproverMemberId;
@@ -50,6 +51,7 @@ public class ApprovalLineResDto {
                 .actualApproverMemberId(entity.getActualApproverMemberId())
                 .actualApproverMemberPositionId(entity.getActualApproverMemberPositionId())
                 .isProxyYn(entity.getIsProxyYn())
+                .approverName(entity.getApproverName())
                 .build();
     }
 }

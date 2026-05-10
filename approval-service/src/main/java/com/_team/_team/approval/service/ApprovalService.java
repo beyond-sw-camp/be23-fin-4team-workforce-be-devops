@@ -20,6 +20,7 @@ import com._team._team.event.*;
 import com._team._team.notification.NotificationType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -45,6 +46,7 @@ public class ApprovalService {
     private final OvertimeApprovalEventPublisher overtimeApprovalEventPublisher;
     private final LeaveApprovalEventPublisher leaveApprovalEventPublisher;
     private final AllowanceApprovalEventPublisher allowanceApprovalEventPublisher;
+    private final BusinessTripApprovalEventPublisher businessTripApprovalEventPublisher;
     private final ScheduleApprovalEventPublisher scheduleApprovalEventPublisher;
     private final ObjectMapper objectMapper;
     private final OfficialRecipientRepository officialRecipientRepository;
@@ -66,6 +68,7 @@ public class ApprovalService {
                            OvertimeApprovalEventPublisher overtimeApprovalEventPublisher,
                            LeaveApprovalEventPublisher leaveApprovalEventPublisher,
                            AllowanceApprovalEventPublisher allowanceApprovalEventPublisher,
+                           BusinessTripApprovalEventPublisher businessTripApprovalEventPublisher,
                            ScheduleApprovalEventPublisher scheduleApprovalEventPublisher,
                            ObjectMapper objectMapper,
                            OfficialRecipientRepository officialRecipientRepository,
@@ -83,6 +86,7 @@ public class ApprovalService {
         this.overtimeApprovalEventPublisher = overtimeApprovalEventPublisher;
         this.leaveApprovalEventPublisher = leaveApprovalEventPublisher;
         this.allowanceApprovalEventPublisher = allowanceApprovalEventPublisher;
+        this.businessTripApprovalEventPublisher = businessTripApprovalEventPublisher;
         this.scheduleApprovalEventPublisher = scheduleApprovalEventPublisher;
         this.objectMapper = objectMapper;
         this.officialRecipientRepository = officialRecipientRepository;
@@ -208,6 +212,7 @@ public class ApprovalService {
             publishOvertimeEventIfApplicable(request, OvertimeApprovalEvent.Action.APPROVE);
             publishLeaveEventIfApplicable(request, actualMemberId, LeaveApprovalEvent.Action.USE, null);
             publishAllowanceEventIfApplicable(request, actualMemberId, AllowanceApprovalEvent.Action.APPROVE, reqDto.getComment());
+            publishBusinessTripEventIfApplicable(request, actualMemberId, BusinessTripApprovalEvent.Action.APPROVE);
             publishScheduleEventIfApplicable(request, ScheduleApprovalEvent.Action.APPROVE);
             publishLeaveOfAbsenceEventIfApplicable(request, actualMemberId, LeaveOfAbsenceApprovalEvent.Action.APPROVE, null);
             publishResignationEventIfApplicable(request, actualMemberId, ResignationApprovalEvent.Action.APPROVE, null);
@@ -392,6 +397,7 @@ public class ApprovalService {
         // 반려 시 이벤트 발행
         publishOvertimeEventIfApplicable(request, OvertimeApprovalEvent.Action.REJECT);
         publishAllowanceEventIfApplicable(request, actualMemberId, AllowanceApprovalEvent.Action.REJECT, reqDto.getComment());
+        publishBusinessTripEventIfApplicable(request, actualMemberId, BusinessTripApprovalEvent.Action.REJECT);
         publishLeaveEventIfApplicable(request, actualMemberId, LeaveApprovalEvent.Action.REJECT, reqDto.getComment());
         publishLeaveOfAbsenceEventIfApplicable(request, actualMemberId,
                 LeaveOfAbsenceApprovalEvent.Action.REJECT, reqDto.getComment());
@@ -940,6 +946,53 @@ public class ApprovalService {
     }
 
     /**
+     * 출장신청 문서일 때만 business-trip 이벤트 발행
+     */
+    private void publishBusinessTripEventIfApplicable(ApprovalRequest request,
+                                                      UUID approverId,
+                                                      BusinessTripApprovalEvent.Action action) {
+
+        String docName = request.getApprovalDocument().getDocumentName();
+        if (!"국내출장신청".equals(docName) && !"해외출장신청".equals(docName)) {
+            return;
+        }
+
+        JsonNode node = readContent(request.getContentJson());
+        if (node == null) return;
+
+        long accommodation = parseLong(node.path("accommodationFee").asText(null));
+        long meal = parseLong(node.path("mealFee").asText(null));
+        long total = accommodation + meal;
+
+        LocalDate tripStart = parseLocalDate(node.path("tripStartDate").asText(null));
+        LocalDate tripEnd = parseLocalDate(node.path("tripEndDate").asText(null));
+
+        businessTripApprovalEventPublisher.publish(BusinessTripApprovalEvent.builder()
+                .companyId(request.getApprovalDocument().getCompanyId())
+                .memberId(request.getMemberId())
+                .requestId(request.getRequestId())
+                .approverId(approverId)
+                .decidedAt(LocalDateTime.now())
+                .tripStartDate(tripStart)
+                .tripEndDate(tripEnd)
+                .totalAmount(total)
+                .action(action)
+                .build());
+    }
+
+    private long parseLong(String s) {
+        if (s == null || s.isBlank()) return 0L;
+        try { return Long.parseLong(s.trim()); }
+        catch (NumberFormatException e) { return 0L; }
+    }
+
+    private LocalDate parseLocalDate(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { return LocalDate.parse(s.trim()); }
+        catch (Exception e) { return null; }
+    }
+
+    /**
      * 휴직 신청서 문서일 때만 leave-of-absence 이벤트 발행
      */
     private void publishLeaveOfAbsenceEventIfApplicable(ApprovalRequest request,
@@ -986,4 +1039,5 @@ public class ApprovalService {
             return null;
         }
     }
+
 }

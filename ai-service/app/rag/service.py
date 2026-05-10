@@ -17,10 +17,13 @@ LAYER_PRIORITY = {
 }
 
 # Layer별 점수 보너스
+# 정책 질문은 detect_category가 카테고리를 반환해 include_platform=False가 되며
+# platform/hr_uploaded가 검색에서 빠진다 → db_sync 답변 영향 0.
+# 액션 가이드 질문(어디서/어떻게)만 '기타'로 분류돼 전체 검색되며 boost 작동.
 LAYER_BOOST = {
-    "db_sync": 0.10,        # +10% 가산
-    "hr_uploaded": 0.0,     # 기준
-    "platform": 0.10,      # +10% 가산
+    "db_sync": 0.0,
+    "hr_uploaded": 0.20,    # 회사 자체 업로드 문서 우위
+    "platform": 0.20,       # 액션 가이드 질문에서 platform 우위 확보
 }
 
 

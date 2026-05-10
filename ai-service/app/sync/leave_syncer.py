@@ -105,11 +105,7 @@ def format_leave_type_to_rag(
 {details_str}{extra_policy_section}
 
 ■ 관련 키워드
-{keywords_str}
-
-■ 관련 메뉴
-관련 메뉴: /app/approvals
-화면명: 결재 요청 작성 (휴가 신청은 전자결재 > 결재 생성에서)"""
+{keywords_str}"""
 
 
 async def sync_leave_documents(

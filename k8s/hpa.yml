@@ -9,14 +9,14 @@ spec:
     kind: Deployment
     name: gateway-depl
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -41,15 +41,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: member-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -74,15 +74,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: salary-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -107,15 +107,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: approval-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -140,15 +140,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: goal-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -173,15 +173,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: search-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -206,15 +206,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: ai-depl
-  minReplicas: 2
-  maxReplicas: 3
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300

@@ -171,28 +171,6 @@ public class EvaluationSeasonService {
 
         season.publishResults();
         meetingRecordService.createFeedbackMeetingsForSeason(seasonId, companyId);
-
-        notifyAdminsForBonusBatch(season, companyId);
-    }
-
-    // 평가 결과 공개 직후 인사 시스템 관리자에게 성과급 발행 안내 알림
-    private void notifyAdminsForBonusBatch(EvaluationSeason season, UUID companyId) {
-        List<UUID> adminIds = memberServiceClient.findAdminMemberIds(companyId);
-        if (adminIds.isEmpty()) return;
-
-        String content = "[" + season.getName() + "] 평가 결과가 공개되었습니다. 성과급 발행을 진행하세요.";
-        for (UUID adminId : adminIds) {
-            eventPublisher.publishEvent(NotificationMessage.builder()
-                    .receiverId(adminId)
-                    .senderId(null)
-                    .notificationType(NotificationType.EVALUATION_RESULTS_PUBLISHED)
-                    .content(content)
-                    .targetId(season.getSeasonId())
-                    .targetType("EVALUATION_SEASON")
-                    .build());
-        }
-        log.info("[EVAL-NOTIFY] 평가 결과 공개 알림 발송 companyId={} seasonId={} adminCount={}",
-                companyId, season.getSeasonId(), adminIds.size());
     }
 
     @Transactional

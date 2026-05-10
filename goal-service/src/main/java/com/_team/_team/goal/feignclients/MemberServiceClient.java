@@ -1,6 +1,5 @@
 package com._team._team.goal.feignclients;
 
-import com._team._team.dto.ApiResponse;
 import com._team._team.goal.feignclients.dto.MemberOrgContextDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@FeignClient(name = "member-service", contextId = "goalMemberServiceClient")
+@FeignClient(name = "member-service", contextId = "goalMemberServiceClient", url = "${feign.url.member-service:}")
 public interface MemberServiceClient {
 
     @GetMapping("/member/internal/candidates-for-evaluator")
@@ -30,10 +29,6 @@ public interface MemberServiceClient {
 
     @GetMapping("/member/internal/organizations/{organizationId}/member-ids")
     List<UUID> getMemberIdsByOrganization(@PathVariable("organizationId") UUID organizationId);
-
-    // 회사 인사 시스템 관리자 memberId 목록 - 평가 결과 공개 시 성과급 발행 알림 대상
-    @GetMapping("/member/internal/admin-ids-by-company")
-    ApiResponse<List<UUID>> getAdminMemberIdsByCompany(@RequestParam("companyId") UUID companyId);
 
     default List<UUID> findManagedMemberIds(UUID companyId, UUID managerMemberId) {
         try {
@@ -64,17 +59,6 @@ public interface MemberServiceClient {
     default List<UUID> findMemberIdsByOrgId(UUID companyId, UUID orgId) {
         try {
             return getMemberIdsByOrganization(orgId);
-        } catch (Exception ignore) {
-            return Collections.emptyList();
-        }
-    }
-
-    // 회사 인사 시스템 관리자 memberId 목록
-    default List<UUID> findAdminMemberIds(UUID companyId) {
-        try {
-            ApiResponse<List<UUID>> res = getAdminMemberIdsByCompany(companyId);
-            if (res == null || res.getData() == null) return Collections.emptyList();
-            return res.getData();
         } catch (Exception ignore) {
             return Collections.emptyList();
         }

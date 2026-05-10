@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "salary-service")
+@FeignClient(name = "salary-service", url = "${feign.url.salary-service:}") //로컬용 + k8s 배포 시 유레카 적용 x
 public interface SalaryServiceClient {
 
     // 회사 생성 시 기본 휴가 종류 8종 추가

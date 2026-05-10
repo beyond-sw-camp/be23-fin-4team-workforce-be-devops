@@ -4,7 +4,6 @@ import com._team._team.approval.feignclients.dto.MemberContractInfoResDto;
 import com._team._team.approval.feignclients.dto.MemberPositionResDto;
 import com._team._team.approval.feignclients.dto.OrganizationResDto;
 import com._team._team.approval.feignclients.dto.SignatureResDto;
-import com._team._team.dto.ApiResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "member-service", contextId = "approvalServiceClient")
+@FeignClient(name = "member-service", contextId = "approvalServiceClient", url = "${feign.url.member-service:}") // k8s 배포 시 유레카 x
 public interface MemberServiceClient {
 
     @GetMapping("/member/position/internal/{memberPositionId}")
@@ -44,7 +43,4 @@ public interface MemberServiceClient {
 
     @GetMapping("/company/internal/{companyId}/seal")
     String getCompanySealImageUrl(@PathVariable("companyId") UUID companyId);
-
-    @GetMapping("/company/internal/all-ids")
-    ApiResponse<List<UUID>> getAllCompanyIds();
 }

@@ -61,6 +61,19 @@ public class RetirementSimResDto {
     private long estimatedAmount;      // 예상 퇴직금
     private boolean eligible;          // 1년 이상 자격 충족 여부
 
+    // 미사용 연차 수당 (퇴직 시점 잔여 연차 × 통상시급 일액)
+    private Double unusedLeaveDays;
+    private long expectedUnusedLeavePay;
+
+    // 총 예상 수령액 (세전) = 퇴직금 + 미사용 연차 수당
+    private long totalExpectedAmount;
+
+    // 퇴직소득세 추정 (국세청 산식 단순화)
+    private long retirementTax;       // 퇴직소득세 추정
+    private long localIncomeTax;      // 지방소득세 = 퇴직소득세 × 10%
+    private long totalTax;            // 합계 (= retirementTax + localIncomeTax)
+    private long netExpectedAmount;   // 세후 실수령 추정 (= totalExpectedAmount - totalTax)
+
     // 안내
     private String disclaimer;
 }

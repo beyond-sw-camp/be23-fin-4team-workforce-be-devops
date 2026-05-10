@@ -102,4 +102,17 @@ public class SalaryController {
                 HttpStatus.OK
         );
     }
+
+    /** 본인 급여 변동 이력 조회 (직원 마이페이지용) */
+    @GetMapping("/my")
+    public ResponseEntity<?> findMyHistory(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-UUID") UUID memberId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(
+                        salaryService.findMyHistory(companyId, memberId),
+                        "내 급여 이력 조회 성공"),
+                HttpStatus.OK
+        );
+    }
 }

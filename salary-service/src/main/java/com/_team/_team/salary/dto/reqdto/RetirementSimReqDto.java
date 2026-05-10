@@ -20,4 +20,7 @@ public class RetirementSimReqDto {
 
     @NotNull(message = "예상 퇴직일은 필수입니다.")
     private LocalDate resignDate;
+
+    /** 퇴직 시점 미사용 연차 일수 - 시뮬 정확도 향상용 */
+    private Double unusedLeaveDays;
 }

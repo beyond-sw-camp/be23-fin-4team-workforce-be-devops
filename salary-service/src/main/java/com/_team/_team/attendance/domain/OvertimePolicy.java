@@ -99,9 +99,19 @@ public class OvertimePolicy extends BaseTimeEntity {
     /** 정책 효력 종료일 (null이면 현재 적용 중) */
     private LocalDate effectiveTo;
 
+    /** 삭제 여부  */
+    @Column(nullable = false, length = 1)
+    @Builder.Default
+    private String delYn = "N";
+
     // 정책 효력 종료
     public void close(LocalDate endDate) {
         this.effectiveTo = endDate;
+    }
+
+    // 정책 소프트 삭제, 이력 흔적은 보존하되 조회에서 제외
+    public void softDelete() {
+        this.delYn = "Y";
     }
 
     // 정책 내용 수정
@@ -112,7 +122,9 @@ public class OvertimePolicy extends BaseTimeEntity {
                        Integer weeklyTotalLimitMinutes,
                        Integer dailyOvertimeLimitMinutes,
                        Integer monthlyOvertimeLimitMinutes,
-                       Boolean holidayWorkRequiresApproval) {
+                       Boolean holidayWorkRequiresApproval,
+                       LocalDate effectiveFrom,
+                       LocalDate effectiveTo) {
         if (overtimeFloorMinutes != null) this.overtimeFloorMinutes = overtimeFloorMinutes;
         if (approvalMode != null) this.approvalMode = approvalMode;
         if (postApprovalDeadlineHours != null) this.postApprovalDeadlineHours = postApprovalDeadlineHours;
@@ -121,5 +133,8 @@ public class OvertimePolicy extends BaseTimeEntity {
         if (dailyOvertimeLimitMinutes != null) this.dailyOvertimeLimitMinutes = dailyOvertimeLimitMinutes;
         if (monthlyOvertimeLimitMinutes != null) this.monthlyOvertimeLimitMinutes = monthlyOvertimeLimitMinutes;
         if (holidayWorkRequiresApproval != null) this.holidayWorkRequiresApproval = holidayWorkRequiresApproval;
+        // 적용 기간은 명시적 변경 시에만 갱신 (null 인 경우 기존값 유지)
+        if (effectiveFrom != null) this.effectiveFrom = effectiveFrom;
+        if (effectiveTo != null) this.effectiveTo = effectiveTo;
     }
 }

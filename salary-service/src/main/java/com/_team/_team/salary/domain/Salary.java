@@ -97,6 +97,29 @@ public class Salary extends BaseTimeEntity {
      * 직급명/직책명이 reqDto 에 비어 있으면 기존 값 보존
      * 세무 추가 필드(자녀수·감면)도 reqDto 에 들어오면 갱신, null 이면 기본값 적용
      */
+    /**
+     * 인사발령 적용 시 호출
+     */
+    public void applyPersonnelOrder(String newJobGradeName, String newJobTitleName, Integer newStep) {
+        if (newJobGradeName != null && !newJobGradeName.isBlank()) {
+            this.jobGradeName = newJobGradeName;
+            if (newStep == null && this.step != null) {
+                this.step = 1;
+            }
+        }
+        if (newJobTitleName != null && !newJobTitleName.isBlank()) {
+            this.jobTitleName = newJobTitleName;
+        }
+        if (newStep != null) {
+            this.step = newStep;
+        }
+    }
+
+    /** 호봉 변경 시 호봉표 lookup 결과로 baseSalary 갱신 */
+    public void updateBaseSalaryFromPersonnelOrder(long newBaseSalary) {
+        this.baseSalary = newBaseSalary;
+    }
+
     public void update(SalaryUpdateReqDto reqDto, long resolvedBaseSalary){
         this.salaryPolicyId = reqDto.getSalaryPolicyId();
         this.baseSalary = resolvedBaseSalary;

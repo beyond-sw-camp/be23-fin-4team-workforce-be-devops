@@ -111,6 +111,11 @@ public class SalaryPolicy extends BaseTimeEntity {
         return started && notEnded;
     }
 
+    // 정책 종료 - 신규 정책 등록 시 기존 활성 정책을 자동으로 종료할 때 사용
+    public void close(LocalDate endDate) {
+        this.effectiveTo = endDate;
+    }
+
     // 급여 정책 수정
     public void update(SalaryPolicyUpdateReqDto reqDto) {
         this.policyName = reqDto.getPolicyName();

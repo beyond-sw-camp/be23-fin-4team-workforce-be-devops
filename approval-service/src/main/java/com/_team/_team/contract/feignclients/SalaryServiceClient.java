@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.UUID;
 
-@FeignClient(name = "salary-service", contextId = "contractSalaryClient", url = "${feign.url.salary-service:}")
+@FeignClient(name = "salary-service", contextId = "contractSalaryClient")
 public interface SalaryServiceClient {
 
     @GetMapping("/salary/salaries/member/{memberId}")

@@ -37,7 +37,10 @@ public class SalaryPolicyService {
     // 급여 정책 생성
     public SalaryPolicyResDto save(UUID companyId, SalaryPolicyCreateReqDto reqDto) {
         validateDateRange(reqDto.getEffectiveFrom(), reqDto.getEffectiveTo());
-        validateNoActivePolicyOnCreate(companyId);
+
+        // 기존 활성 정책이 있으면 신규 시작일 하루 전으로 자동 종료
+        salaryPolicyRepository.findActivePolicies(companyId, LocalDate.now())
+                .forEach(existing -> existing.close(reqDto.getEffectiveFrom().minusDays(1)));
 
         SalaryPolicy salaryPolicy = reqDto.toEntity(companyId);
         SalaryPolicy saved = salaryPolicyRepository.save(salaryPolicy);
@@ -156,18 +159,24 @@ public class SalaryPolicyService {
         );
     }
 
-    // 적용 종료일이 시작일보다 빠른지 검증
+    // 적용 기간 검증 - 월 단위 적용 강제
     private void validateDateRange(LocalDate effectiveFrom, LocalDate effectiveTo) {
         if (effectiveTo != null && effectiveTo.isBefore(effectiveFrom)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "적용 종료일은 적용 시작일보다 빠를 수 없습니다.");
         }
-    }
-
-    // 생성 시 활성 정책 중복 검증 (회사당 활성 정책 1개만 허용)
-    private void validateNoActivePolicyOnCreate(UUID companyId) {
-        boolean hasActivePolicy = !salaryPolicyRepository.findActivePolicies(companyId, LocalDate.now()).isEmpty();
-        if (hasActivePolicy) {
-            throw new BusinessException(HttpStatus.CONFLICT, "이미 활성화된 급여 정책이 있어 새 정책을 생성할 수 없습니다.");
+        // 시작일은 매월 1일만
+        if (effectiveFrom.getDayOfMonth() != 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "급여 정책 적용 시작일은 매월 1일만 가능합니다. (월 중간 변경은 급여 계산 정합성을 깨뜨립니다)");
+        }
+        // 종료일은 매월 말일만 (null 허용 = 무기한 활성)
+        if (effectiveTo != null) {
+            LocalDate lastDayOfMonth = effectiveTo.withDayOfMonth(effectiveTo.lengthOfMonth());
+            if (!effectiveTo.equals(lastDayOfMonth)) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "급여 정책 적용 종료일은 매월 말일만 가능합니다. (예: 5월 종료라면 5/31)");
+            }
         }
     }
+
 }

@@ -2,6 +2,8 @@ package com._team._team.salary.service;
 
 import com._team._team.attendance.domain.MemberLeaveOfAbsence;
 import com._team._team.attendance.domain.enums.LeaveOfAbsenceApprovalStatus;
+import com._team._team.attendance.domain.enums.BalanceType;
+import com._team._team.attendance.repository.MemberBalanceRepository;
 import com._team._team.attendance.repository.MemberLeaveOfAbsenceRepository;
 import com._team._team.dto.BusinessException;
 import com._team._team.salary.domain.Payroll;
@@ -67,6 +69,7 @@ public class RetirementSimulationService {
     private final MemberLeaveOfAbsenceRepository memberLeaveOfAbsenceRepository;
     private final MemberFeignClient memberFeignClient;
     private final PayrollCalculationService payrollCalculationService;
+    private final MemberBalanceRepository memberBalanceRepository;
 
     @Autowired
     public RetirementSimulationService(RetirementPolicyRepository retirementPolicyRepository,
@@ -77,7 +80,8 @@ public class RetirementSimulationService {
                                        PayrollRepository payrollRepository,
                                        MemberLeaveOfAbsenceRepository memberLeaveOfAbsenceRepository,
                                        MemberFeignClient memberFeignClient,
-                                       PayrollCalculationService payrollCalculationService) {
+                                       PayrollCalculationService payrollCalculationService,
+                                       MemberBalanceRepository memberBalanceRepository) {
         this.retirementPolicyRepository = retirementPolicyRepository;
         this.salaryRepository = salaryRepository;
         this.salaryPolicyRepository = salaryPolicyRepository;
@@ -87,6 +91,7 @@ public class RetirementSimulationService {
         this.memberLeaveOfAbsenceRepository = memberLeaveOfAbsenceRepository;
         this.memberFeignClient = memberFeignClient;
         this.payrollCalculationService = payrollCalculationService;
+        this.memberBalanceRepository = memberBalanceRepository;
     }
 
     public RetirementSimResDto simulateForMember(UUID companyId, UUID memberId, RetirementSimReqDto req) {
@@ -140,8 +145,36 @@ public class RetirementSimulationService {
             estimated = aw.appliedDailyWage * 30 * days / 365;
         }
 
-        log.info("[RETIREMENT-SIM] memberId={} type={} days={} baseMonthly={} appliedDaily={} estimated={}",
-                memberId, type, days, baseMonthly, aw.appliedDailyWage, estimated);
+        // 퇴직 시점 미사용 연차 일수 - 입력 없으면 MemberBalance 의 활성 ANNUAL 잔액 자동 채움
+        Double unusedLeaveDays = req.getUnusedLeaveDays();
+        if (unusedLeaveDays == null) {
+            try {
+                Double auto = memberBalanceRepository.sumRemainingByMemberAndType(
+                        memberId, companyId, BalanceType.ANNUAL);
+                unusedLeaveDays = auto != null ? auto : 0.0;
+            } catch (Exception e) {
+                log.warn("[RETIREMENT-SIM] 잔여 연차 자동 조회 실패 - {}", e.getMessage());
+                unusedLeaveDays = 0.0;
+            }
+        }
+
+        // 미사용 연차 수당 = 통상시급 일액 × 잔여 연차일수
+        long expectedUnusedLeavePay = 0L;
+        if (unusedLeaveDays > 0 && aw.ordinaryDailyWage > 0) {
+            long days_ = Math.round(unusedLeaveDays);
+            expectedUnusedLeavePay = aw.ordinaryDailyWage * days_;
+        }
+        long totalExpected = estimated + expectedUnusedLeavePay;
+
+        // 퇴직소득세 추정 - 한국 국세청 산정 방식 단순화
+        long retirementTax = estimateRetirementTax(estimated, years);
+        long localIncomeTax = retirementTax / 10; // 지방소득세 = 퇴직소득세 10%
+        long totalTax = retirementTax + localIncomeTax;
+        long netExpectedAmount = totalExpected - totalTax;
+
+        log.info("[RETIREMENT-SIM] memberId={} type={} days={} baseMonthly={} appliedDaily={} estimated={} unusedLeavePay={} total={}",
+                memberId, type, days, baseMonthly, aw.appliedDailyWage,
+                estimated, expectedUnusedLeavePay, totalExpected);
 
         return RetirementSimResDto.builder()
                 .retirementType(type)
@@ -166,8 +199,81 @@ public class RetirementSimulationService {
                 .appliedBasis(aw.appliedBasis)
                 .estimatedAmount(estimated)
                 .eligible(eligible)
+                .unusedLeaveDays(unusedLeaveDays)
+                .expectedUnusedLeavePay(expectedUnusedLeavePay)
+                .totalExpectedAmount(totalExpected)
+                .retirementTax(retirementTax)
+                .localIncomeTax(localIncomeTax)
+                .totalTax(totalTax)
+                .netExpectedAmount(netExpectedAmount)
                 .disclaimer(disclaimer(type))
                 .build();
+    }
+
+    /**
+     * 퇴직소득세 추정 - 국세청 산정 방식 단순화
+     * 1) 환산급여 = (퇴직소득금액 - 근속연수공제) ÷ 근속연수 × 12
+     * 2) 환산급여공제 적용 (8단계 누진)
+     * 3) 기본세율 (6~45%) 산출
+     * 4) 산출세액 ÷ 12 × 근속연수 = 최종 퇴직소득세
+     */
+    private long estimateRetirementTax(long retirementPay, long years) {
+        if (retirementPay <= 0 || years <= 0) return 0L;
+
+        // 1) 근속연수공제 - 근속연수 구간별 공제액
+        long serviceDeduction;
+        if (years <= 5) {
+            serviceDeduction = 1_000_000L * years;          // 100만/년
+        } else if (years <= 10) {
+            serviceDeduction = 5_000_000L + 2_000_000L * (years - 5);   // 500만 + 200만/년
+        } else if (years <= 20) {
+            serviceDeduction = 15_000_000L + 2_500_000L * (years - 10); // 1,500만 + 250만/년
+        } else {
+            serviceDeduction = 40_000_000L + 3_000_000L * (years - 20); // 4,000만 + 300만/년
+        }
+
+        // 2) 환산급여 = (퇴직소득 - 근속연수공제) ÷ 근속연수 × 12
+        long taxableBase = retirementPay - serviceDeduction;
+        if (taxableBase <= 0) return 0L;
+        long convertedAnnual = taxableBase / years * 12;
+
+        // 3) 환산급여공제 - 8단계 누진 (2024년 기준)
+        long conversionDeduction;
+        if (convertedAnnual <= 8_000_000L) {
+            conversionDeduction = convertedAnnual;
+        } else if (convertedAnnual <= 70_000_000L) {
+            conversionDeduction = 8_000_000L + (long)((convertedAnnual - 8_000_000L) * 0.6);
+        } else if (convertedAnnual <= 100_000_000L) {
+            conversionDeduction = 45_200_000L + (long)((convertedAnnual - 70_000_000L) * 0.55);
+        } else if (convertedAnnual <= 300_000_000L) {
+            conversionDeduction = 61_700_000L + (long)((convertedAnnual - 100_000_000L) * 0.45);
+        } else {
+            conversionDeduction = 151_700_000L + (long)((convertedAnnual - 300_000_000L) * 0.35);
+        }
+        long taxableConverted = Math.max(0L, convertedAnnual - conversionDeduction);
+
+        // 4) 기본세율 (소득세법 6~45% 누진)
+        long calculatedTax;
+        if (taxableConverted <= 14_000_000L) {
+            calculatedTax = (long)(taxableConverted * 0.06);
+        } else if (taxableConverted <= 50_000_000L) {
+            calculatedTax = 840_000L + (long)((taxableConverted - 14_000_000L) * 0.15);
+        } else if (taxableConverted <= 88_000_000L) {
+            calculatedTax = 6_240_000L + (long)((taxableConverted - 50_000_000L) * 0.24);
+        } else if (taxableConverted <= 150_000_000L) {
+            calculatedTax = 15_360_000L + (long)((taxableConverted - 88_000_000L) * 0.35);
+        } else if (taxableConverted <= 300_000_000L) {
+            calculatedTax = 37_060_000L + (long)((taxableConverted - 150_000_000L) * 0.38);
+        } else if (taxableConverted <= 500_000_000L) {
+            calculatedTax = 94_060_000L + (long)((taxableConverted - 300_000_000L) * 0.40);
+        } else if (taxableConverted <= 1_000_000_000L) {
+            calculatedTax = 174_060_000L + (long)((taxableConverted - 500_000_000L) * 0.42);
+        } else {
+            calculatedTax = 384_060_000L + (long)((taxableConverted - 1_000_000_000L) * 0.45);
+        }
+
+        // 5) 산출세액 ÷ 12 × 근속연수 = 최종 퇴직소득세
+        return calculatedTax / 12 * years;
     }
 
     /**

@@ -86,4 +86,7 @@ public interface SalaryRepository extends JpaRepository<Salary, UUID> {
             @Param("memberId") UUID memberId,
             @Param("companyId") UUID companyId,
             @Param("retireDate") LocalDate retireDate);
+
+    List<Salary> findByCompanyIdAndMemberIdOrderByEffectiveFromAsc(
+            UUID companyId, UUID memberId);
 }

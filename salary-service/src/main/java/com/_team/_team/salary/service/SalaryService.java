@@ -7,6 +7,7 @@ import com._team._team.salary.domain.SalaryPolicy;
 import com._team._team.salary.domain.enums.TaxReductionType;
 import com._team._team.salary.dto.reqdto.SalaryCreateReqDto;
 import com._team._team.salary.dto.reqdto.SalaryUpdateReqDto;
+import com._team._team.salary.dto.resdto.MySalaryHistoryResDto;
 import com._team._team.salary.dto.resdto.PayrollPrecheckResDto;
 import com._team._team.salary.dto.resdto.SalaryResDto;
 import com._team._team.salary.feignClients.MemberFeignClient;
@@ -328,6 +329,34 @@ public class SalaryService {
         delete(companyId, salaryId, false);
     }
 
+    /**
+     * 인사발령 적용 시 직원의 활성 Salary 직급/직책/호봉 동기화
+     * newStep 명시되면 그 호봉으로 직접 적용 + 호봉표 lookup 으로 baseSalary 재산정
+     * newStep null + 직급 변경 시 step=1 자동 reset (기존 동작 호환)
+     */
+    public void applyPersonnelOrder(UUID companyId, UUID memberId,
+                                    String newJobGradeName, String newJobTitleName,
+                                    Integer newStep) {
+        List<Salary> activeSalaries = salaryRepository.findByMemberIdAndCompanyId(memberId, companyId).stream()
+                .filter(Salary::isActive)
+                .toList();
+        if (activeSalaries.isEmpty()) {
+            log.info("[SALARY-PERSONNEL-ORDER] 활성 Salary 없음 - 동기화 skip. companyId={} memberId={}",
+                    companyId, memberId);
+            return;
+        }
+        for (Salary s : activeSalaries) {
+            s.applyPersonnelOrder(newJobGradeName, newJobTitleName, newStep);
+            // 호봉이 명시되었으면 호봉표 lookup 으로 baseSalary 자동 재산정
+            if (newStep != null) {
+                long resolved = resolveBaseSalary(companyId, newStep, s.getBaseSalary(), LocalDate.now());
+                s.updateBaseSalaryFromPersonnelOrder(resolved);
+            }
+        }
+        log.info("[SALARY-PERSONNEL-ORDER] 동기화 완료 companyId={} memberId={} grade={} title={} step={} 활성행={}건",
+                companyId, memberId, newJobGradeName, newJobTitleName, newStep, activeSalaries.size());
+    }
+
     // 적용 종료일이 시작일보다 빠른지 검증
     private void validateDateRange(LocalDate effectiveFrom, LocalDate effectiveTo){
         if(effectiveTo != null && effectiveTo.isBefore(effectiveFrom)){
@@ -371,5 +400,35 @@ public class SalaryService {
                             + year
             );
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<MySalaryHistoryResDto> findMyHistory(UUID companyId, UUID memberId) {
+        // 1. 본인 급여 행 전부, 적용일 오름차순으로
+        List<Salary> ascending = salaryRepository
+                .findByCompanyIdAndMemberIdOrderByEffectiveFromAsc(companyId, memberId);
+
+        // 2. 직전 행과 비교해서 previousBaseSalary, changeRate 계산
+        List<MySalaryHistoryResDto> result = new ArrayList<>(ascending.size());
+        Long prev = null;
+        for (Salary s : ascending) {
+            Double rate = (prev == null || prev == 0L) ? null
+                    : (s.getBaseSalary() - prev) * 100.0 / prev;
+            result.add(MySalaryHistoryResDto.builder()
+                    .salaryId(s.getSalaryId())
+                    .previousBaseSalary(prev)
+                    .currentBaseSalary(s.getBaseSalary())
+                    .changeRate(rate)
+                    .jobGradeName(s.getJobGradeName())
+                    .jobTitleName(s.getJobTitleName())
+                    .effectiveFrom(s.getEffectiveFrom())
+                    .effectiveTo(s.getEffectiveTo())
+                    .build());
+            prev = s.getBaseSalary();
+        }
+
+        // 3. 화면 노출은 최신순
+        Collections.reverse(result);
+        return result;
     }
 }

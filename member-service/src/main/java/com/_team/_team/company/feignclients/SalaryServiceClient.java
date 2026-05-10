@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "salary-service", url = "${feign.url.salary-service:}") //로컬용 + k8s 배포 시 유레카 적용 x
+@FeignClient(name = "salary-service")
 public interface SalaryServiceClient {
 
     // 회사 생성 시 기본 휴가 종류 8종 추가
@@ -28,4 +28,17 @@ public interface SalaryServiceClient {
     // 회사 휴일 전체 목록 (법정+커스텀 통합)
     @GetMapping("/company-holidays/internal")
     ApiResponse<List<CompanyHolidayFeignDto>> findCompanyHolidays(@RequestParam("companyId") UUID companyId);
+
+    /**
+     * 인사발령 적용 시 활성 Salary 의 직급/직책 동기화
+     * - 호봉제 회사라면 step 도 1로 reset (회사 admin 이 별도 조정 가능)
+     * - 호봉/기본급 자동 lookup 은 v2 (현재는 직급/직책 라벨만 갱신)
+     */
+    @PostMapping("/salary/internal/apply-personnel-order")
+    void applyPersonnelOrder(
+            @RequestParam("memberId") UUID memberId,
+            @RequestParam("companyId") UUID companyId,
+            @RequestParam(value = "newJobGradeName", required = false) String newJobGradeName,
+            @RequestParam(value = "newJobTitleName", required = false) String newJobTitleName,
+            @RequestParam(value = "newStep", required = false) Integer newStep);
 }

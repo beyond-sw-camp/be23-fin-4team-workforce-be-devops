@@ -59,6 +59,19 @@ public class OvertimePolicyController {
     }
 
     /**
+     * 정책 소프트 삭제
+     */
+    @DeleteMapping("/{policyId}")
+    public ResponseEntity<?> delete(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @PathVariable UUID policyId) {
+        overtimePolicyService.delete(companyId, policyId);
+        return new ResponseEntity<>(
+                ApiResponse.success(null, "연장근로 정책이 삭제되었습니다."),
+                HttpStatus.OK);
+    }
+
+    /**
      * 현재 적용 중인 정책
      */
     @GetMapping("/current")

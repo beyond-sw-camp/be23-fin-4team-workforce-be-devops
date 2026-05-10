@@ -36,8 +36,8 @@ public class SalaryItemTemplateCreateReqDto {
     // 회사 기본 지급 금액
     private Long defaultAmount;
 
-    // 회사 공통 적용 여부 Y/N
-    private String applyToAllYn;
+    // 기본 금액 고정 여부 Y/N - Y면 직원별 차등 불가
+    private String fixedAmountYn;
 
     public SalaryItemTemplate toEntity(UUID companyId) {
         return SalaryItemTemplate.builder()
@@ -48,7 +48,7 @@ public class SalaryItemTemplateCreateReqDto {
                 .isTaxableYn(isTaxableYn)
                 .isOrdinaryWageYn("Y".equalsIgnoreCase(isOrdinaryWageYn) ? "Y" : "N")
                 .defaultAmount(defaultAmount)
-                .applyToAllYn("Y".equalsIgnoreCase(applyToAllYn) ? "Y" : "N")
+                .fixedAmountYn("Y".equalsIgnoreCase(fixedAmountYn) ? "Y" : "N")
                 // 커스텀 등록 시 자동 매핑
                 .taxCategory("Y".equals(isTaxableYn)
                         ? TaxCategory.TAXABLE

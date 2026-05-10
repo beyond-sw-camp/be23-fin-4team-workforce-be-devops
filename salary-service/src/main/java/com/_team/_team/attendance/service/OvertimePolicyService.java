@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -45,6 +46,9 @@ public class OvertimePolicyService {
                 reqDto.getWeeklyTotalLimitMinutes(),
                 reqDto.getDailyOvertimeLimitMinutes(),
                 reqDto.getMonthlyOvertimeLimitMinutes());
+
+        // 월 단위 적용 강제
+        validateMonthlyBoundary(reqDto.getEffectiveFrom(), reqDto.getEffectiveTo());
 
         // 기존 활성 정책이 있으면 종료일 지정 (신규 시작일 하루 전)
         overtimePolicyRepository.findByCompanyIdAndEffectiveToIsNull(companyId)
@@ -83,6 +87,14 @@ public class OvertimePolicyService {
                 reqDto.getDailyOvertimeLimitMinutes(),
                 reqDto.getMonthlyOvertimeLimitMinutes());
 
+        // 적용 기간 변경 시 월 단위 강제
+        if (reqDto.getEffectiveFrom() != null || reqDto.getEffectiveTo() != null) {
+            OvertimePolicy current = findPolicy(policyId, companyId);
+            LocalDate newFrom = reqDto.getEffectiveFrom() != null ? reqDto.getEffectiveFrom() : current.getEffectiveFrom();
+            LocalDate newTo = reqDto.getEffectiveTo() != null ? reqDto.getEffectiveTo() : current.getEffectiveTo();
+            validateMonthlyBoundary(newFrom, newTo);
+        }
+
         OvertimePolicy policy = findPolicy(policyId, companyId);
         policy.update(
                 reqDto.getOvertimeFloorMinutes(),
@@ -92,7 +104,9 @@ public class OvertimePolicyService {
                 reqDto.getWeeklyTotalLimitMinutes(),
                 reqDto.getDailyOvertimeLimitMinutes(),
                 reqDto.getMonthlyOvertimeLimitMinutes(),
-                reqDto.getHolidayWorkRequiresApproval()
+                reqDto.getHolidayWorkRequiresApproval(),
+                reqDto.getEffectiveFrom(),
+                reqDto.getEffectiveTo()
         );
 
         // RAG 동기화 이벤트 발행
@@ -128,6 +142,18 @@ public class OvertimePolicyService {
     @Transactional(readOnly = true)
     public OvertimePolicyResDto findById(UUID policyId, UUID companyId) {
         return OvertimePolicyResDto.fromEntity(findPolicy(policyId, companyId));
+    }
+
+    /**
+     * 정책 소프트 삭제, 활성 정책은 차단 (신규 등록 시 자동 종료 흐름 사용)
+     */
+    public void delete(UUID companyId, UUID policyId) {
+        OvertimePolicy policy = findPolicy(policyId, companyId);
+        if (policy.getEffectiveTo() == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "현재 활성 정책은 삭제할 수 없습니다. 신규 정책을 등록하면 자동 종료됩니다.");
+        }
+        policy.softDelete();
     }
 
     /**
@@ -190,6 +216,23 @@ public class OvertimePolicyService {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
                     String.format("월 연장근로 한도(%d분)가 주 한도 × 5주(%d분)를 초과할 수 없습니다.",
                             monthlyOvertimeLimit, weeklyOvertimeLimit * 5));
+        }
+    }
+
+    /**
+     * 적용 기간 월 단위 강제 - 시작일은 매월 1일, 종료일은 매월 말일
+     */
+    private void validateMonthlyBoundary(LocalDate effectiveFrom, LocalDate effectiveTo) {
+        if (effectiveFrom != null && effectiveFrom.getDayOfMonth() != 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST,
+                    "연장근로 정책 적용 시작일은 매월 1일만 가능합니다.");
+        }
+        if (effectiveTo != null) {
+            LocalDate lastDay = effectiveTo.withDayOfMonth(effectiveTo.lengthOfMonth());
+            if (!effectiveTo.equals(lastDay)) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST,
+                        "연장근로 정책 적용 종료일은 매월 말일만 가능합니다. (예: 5월 종료라면 5/31)");
+            }
         }
     }
 }

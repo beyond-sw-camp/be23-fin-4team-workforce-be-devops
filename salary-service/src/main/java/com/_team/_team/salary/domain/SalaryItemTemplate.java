@@ -71,14 +71,12 @@ public class SalaryItemTemplate extends BaseTimeEntity {
     private Long defaultAmount;
 
     /**
-     * 회사 공통 적용 여부
-     * - "Y" = 회사 공통: 모든 활성 직원 수당
-     * - "N" = 개인 차등: (직책수당, 자격수당 등)
+     * 기본 금액 고정 여부
      * 기본값 "N"
      */
     @Column(nullable = false, length = 1)
     @Builder.Default
-    private String applyToAllYn = "N";
+    private String fixedAmountYn = "N";
 
     /** 삭제 여부 */
     @Column(length = 1)
@@ -98,8 +96,8 @@ public class SalaryItemTemplate extends BaseTimeEntity {
         this.displayOrder = reqDto.getDisplayOrder();
         // defaultAmount 는 명시적으로 전달되면 갱신
         this.defaultAmount = reqDto.getDefaultAmount();
-        if (reqDto.getApplyToAllYn() != null) {
-            this.applyToAllYn = "Y".equalsIgnoreCase(reqDto.getApplyToAllYn()) ? "Y" : "N";
+        if (reqDto.getFixedAmountYn() != null) {
+            this.fixedAmountYn = "Y".equalsIgnoreCase(reqDto.getFixedAmountYn()) ? "Y" : "N";
         }
     }
 

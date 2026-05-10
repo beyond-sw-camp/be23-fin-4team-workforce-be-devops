@@ -31,6 +31,6 @@ public class SalaryItemTemplateUpdateReqDto {
     // 회사 기본 지급 금액
     private Long defaultAmount;
 
-    // 회사 공통 적용 여부 Y/N
-    private String applyToAllYn;
+    // 기본 금액 고정 여부 Y/N - Y면 직원별 차등 불가
+    private String fixedAmountYn;
 }

@@ -8,6 +8,7 @@ import com._team._team.dto.NotificationMessage;
 import com._team._team.notification.NotificationType;
 import com._team._team.salary.feignClients.MemberFeignClient;
 import com._team._team.salary.feignClients.dto.MemberResDto;
+import com._team._team.salary.service.CachedMemberLookupService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,16 +33,19 @@ public class WeeklyLimitCheckService {
     private final LaborLawValidator laborLawValidator;
     private final ApplicationEventPublisher eventPublisher;
     private final MemberFeignClient memberFeignClient;
+    private final CachedMemberLookupService cachedMemberLookup;
 
     @Autowired
     public WeeklyLimitCheckService(DailyAttendanceRepository dailyAttendanceRepository,
                                    LaborLawValidator laborLawValidator,
                                    ApplicationEventPublisher eventPublisher,
-                                   MemberFeignClient memberFeignClient) {
+                                   MemberFeignClient memberFeignClient,
+                                   CachedMemberLookupService cachedMemberLookup) {
         this.dailyAttendanceRepository = dailyAttendanceRepository;
         this.laborLawValidator = laborLawValidator;
         this.eventPublisher = eventPublisher;
         this.memberFeignClient = memberFeignClient;
+        this.cachedMemberLookup = cachedMemberLookup;
     }
 
     // 특정 일자 기준으로 해당 주의 근로시간 한도 직원 감지 + 알림
@@ -89,15 +93,16 @@ public class WeeklyLimitCheckService {
 
         // 2) 회사 시스템 관리자 전체에게 알림 (인사팀 모니터링 용)
         try {
+            // 위반자 정보 (이름/부서)
+            String violatorLabel = resolveMemberLabel(da.getCompanyId(), da.getMemberId());
+
             ApiResponse<List<MemberResDto>> apiRes = memberFeignClient
                     .getAdminsByCompany(da.getCompanyId());
             List<MemberResDto> admins = apiRes != null && apiRes.getData() != null
                     ? apiRes.getData() : List.of();
-            String violatorName = "직원"; // 직원 이름은 별도 호출 비용 - 메시지에 memberId 마지막 4자만
-            String shortMemberId = da.getMemberId().toString().substring(0, 8);
             String adminContent = String.format(
-                    "[근로기준법 알림] 직원(%s) 주간 근로시간 한도 초과 - %s",
-                    shortMemberId, first.message());
+                    "[근로기준법 알림] %s 주간 근로시간 한도 초과 - %s",
+                    violatorLabel, first.message());
             for (MemberResDto admin : admins) {
                 UUID adminId = admin.getMemberId();
                 if (adminId == null || adminId.equals(da.getMemberId())) continue;
@@ -113,6 +118,26 @@ public class WeeklyLimitCheckService {
         } catch (Exception e) {
             log.warn("[WeeklyLimitCheck] 관리자 알림 발송 실패 - {}", e.getMessage());
         }
+    }
+
+    /** 부서명 직원이름 */
+    private String resolveMemberLabel(UUID companyId, UUID memberId) {
+        try {
+            List<MemberResDto> members = cachedMemberLookup.getMembersByCompany(companyId);
+            if (members != null) {
+                for (MemberResDto m : members) {
+                    if (memberId.equals(m.getMemberId())) {
+                        String name = m.getName() != null ? m.getName() : "";
+                        String dept = m.getOrganizationName() != null ? m.getOrganizationName() : "";
+                        if (!dept.isBlank() && !name.isBlank()) return dept + " " + name;
+                        if (!name.isBlank()) return name;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[WeeklyLimitCheck] 직원 라벨 조회 실패 - {}", e.getMessage());
+        }
+        return "직원(" + memberId.toString().substring(0, 8) + ")";
     }
 
     // 결과 요약 record

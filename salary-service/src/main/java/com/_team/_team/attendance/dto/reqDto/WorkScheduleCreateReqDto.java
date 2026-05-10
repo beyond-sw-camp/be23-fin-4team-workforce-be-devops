@@ -46,6 +46,9 @@ public class WorkScheduleCreateReqDto {
     /** null이면 종료일 없음 (현재 적용중) */
     private LocalDate effectiveTo;
 
+    /** 유연근무제 전용 - 매월 다음 달 스케줄 신청 마감일 (1~28). null 이면 디폴트 25일 */
+    private Integer selectionDeadlineDay;
+
     public WorkSchedule toEntity(UUID companyId){
         boolean isFlexible = this.workType == WorkType.FLEXIBLE;
         return WorkSchedule.builder()
@@ -60,6 +63,7 @@ public class WorkScheduleCreateReqDto {
                 .breakEnd(isFlexible ? null : (this.breakEnd != null ? this.breakEnd : LocalTime.of(13, 0)))
                 .effectiveFrom(this.effectiveFrom)
                 .effectiveTo(this.effectiveTo)
+                .selectionDeadlineDay(isFlexible ? this.selectionDeadlineDay : null)
                 .build();
     }
 }

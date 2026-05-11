@@ -207,14 +207,18 @@ async def process_document(
     if not sections:
         raise ValueError("문서에서 섹션을 추출하지 못했습니다")
 
+    # 문서 전체에서 footer 한 번 추출 (중간 섹션에 메뉴/화면명 없어도 부착 가능)
+    document_menu_footer = extract_menu_footer(preprocessed_text)
+
     vectors = []
     global_chunk_index = 0
 
     for section_idx, section in enumerate(sections):
         chunks = chunk_section(section, max_chunk_size=1500)
 
-        # 섹션의 메뉴/화면명 추출 (없으면 빈 문자열)
-        menu_footer = extract_menu_footer(section["full_content"])
+        # 섹션에서 추출 → 없으면 문서 전체 footer 사용
+        section_menu_footer = extract_menu_footer(section["full_content"])
+        menu_footer = section_menu_footer or document_menu_footer
 
         for chunk_idx, chunk_text_content in enumerate(chunks):
             if len(chunk_text_content.strip()) < 20:

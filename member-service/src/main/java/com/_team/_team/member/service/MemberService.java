@@ -158,6 +158,15 @@ public class MemberService {
         rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.EVALUATION,
                 List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
 
+        // ----- 인사 팀장: 시스템 관리자급 추가 권한 (급여/결재양식/계약) -----
+        // SALARY 는 위 공통에서 READ 만 부여됨 → CREATE/UPDATE/DELETE 보강
+        rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.SALARY,
+                List.of(Action.CREATE, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+        rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.APPROVAL_AD,
+                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+        rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.CONTRACT,
+                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+
         // ----- 인사 팀원: 목표/평가 조회만 -----
         rolePermissions.addAll(buildRolePermissions(hrMember, Resource.GOAL,
                 List.of(Action.READ), PermissionRange.COMPANY));

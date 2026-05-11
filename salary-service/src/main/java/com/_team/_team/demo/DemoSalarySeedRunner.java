@@ -657,10 +657,10 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 직원당 매월 1건 LeaveRequest 추가 (APPROVED, 연차 1일)
-     * - 매월 15일 (평일이면 그날, 주말이면 직전 평일)
+     * 직원당 분기 1건 LeaveRequest 추가 (최근 12개월만)
+     * - 분기 가운데 달 15일 (평일 보정)
      * - 그날에 이미 LeaveRequest 있으면 skip (멱등)
-     * - DailyAttendance 정합성은 손대지 않음 (시드 데모 용도)
+     * - 시드 시간 단축: 직원당 매월 → 분기, 최근 12개월만
      */
     private void seedAdditionalLeaveRequests(UUID companyId) {
         UUID annualTypeId = companyLeaveTypeRepository
@@ -684,12 +684,18 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
         LocalDate today = LocalDate.now();
         YearMonth lastMonth = YearMonth.from(today).minusMonths(1);
+        // 최근 12개월만 시드
+        YearMonth windowStart = YearMonth.from(today).minusMonths(12);
         int totalCreated = 0;
 
         for (MemberResDto m : members) {
             if (m.getJoinDate() == null) continue;
-            YearMonth start = YearMonth.from(m.getJoinDate());
+            YearMonth joinYm = YearMonth.from(m.getJoinDate());
+            YearMonth start = joinYm.isAfter(windowStart) ? joinYm : windowStart;
+            // 분기당 1건만 - 2,5,8,11월(분기 중간 달)에 시드
             for (YearMonth ym = start; !ym.isAfter(lastMonth); ym = ym.plusMonths(1)) {
+                int mon = ym.getMonthValue();
+                if (mon != 2 && mon != 5 && mon != 8 && mon != 11) continue;
                 LocalDate target = ym.atDay(Math.min(15, ym.lengthOfMonth()));
                 // 평일 보정 (토/일이면 직전 금요일로)
                 while (target.getDayOfWeek() == DayOfWeek.SATURDAY
@@ -1089,7 +1095,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 .min(Integer::compareTo)
                 .orElse(today.getYear());
 
-        // 매년 1/1 호출 (회계연도 회사 부여)
+        // 매년 1/1 호출만 (회계연도 회사 부여) - 입사 기념일 loop 는 RPC 부하 커서 제거
+        // 입사일 정책 회사도 1/1 호출만으로 fallback (정확도 약간 떨어지지만 시드 시간 큰 단축)
         for (int y = earliestYear; y <= today.getYear(); y++) {
             LocalDate base = LocalDate.of(y, 1, 1);
             if (base.isAfter(today)) continue;
@@ -1097,27 +1104,6 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 leaveGrantWorker.runForCompany(companyId, base);
             } catch (Exception e) {
                 log.warn("[DEMO-SEED] LeaveGrantWorker(1/1) 실패 base={} - {}", base, e.getMessage());
-            }
-        }
-
-        // 직원별 입사 기념일 호출 (입사일 회사 부여)
-        for (MemberResDto m : members) {
-            if (m.getJoinDate() == null) continue;
-            LocalDate join = m.getJoinDate();
-            for (int y = join.getYear() + 1; y <= today.getYear(); y++) {
-                LocalDate anniversary;
-                try {
-                    anniversary = join.withYear(y);
-                } catch (Exception e) {
-                    // 윤년 2/29 보정
-                    anniversary = LocalDate.of(y, 2, 28);
-                }
-                if (anniversary.isAfter(today)) break;
-                try {
-                    leaveGrantWorker.runForCompany(companyId, anniversary);
-                } catch (Exception e) {
-                    log.warn("[DEMO-SEED] LeaveGrantWorker(anniv) 실패 base={} - {}", anniversary, e.getMessage());
-                }
             }
         }
         log.info("[DEMO-SEED] historical 연차 부여 완료 companyId={} 시작연도={}", companyId, earliestYear);
@@ -1582,10 +1568,12 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
             int memberCreated = 0;
             int memberSkipped = 0;
-            // 근태 시드 시작일 cap - max(joinDate, today-36개월), 3년치 일별 근태
-            LocalDate seedStart = member.getJoinDate().isBefore(LocalDate.now().minusMonths(36))
-                    ? LocalDate.now().minusMonths(36)
+            // 근태 시드 시작일 cap - max(joinDate, today-12개월), 최근 12개월치 일별 근태
+            LocalDate seedStart = member.getJoinDate().isBefore(LocalDate.now().minusMonths(12))
+                    ? LocalDate.now().minusMonths(12)
                     : member.getJoinDate();
+            // AttendanceLog 시드 cutoff - 최근 3개월만 (근태정정 시연용)
+            LocalDate logCutoff = LocalDate.now().minusMonths(3);
             for (LocalDate d = seedStart; !d.isAfter(yesterday); d = d.plusDays(1)) {
                 int dow = d.getDayOfWeek().getValue(); // 1=월 ~ 7=일
                 if (dow == 6 || dow == 7) continue; // 토/일 skip
@@ -1732,8 +1720,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .build();
                 DailyAttendance savedDaily = dailyAttendanceRepository.save(daily);
 
-                // 출/퇴근 로그 - LEAVE (clockIn null) 가 아닌 경우에만 저장
-                if (clockIn != null && clockOut != null) {
+                // 출/퇴근 로그 - 최근 3개월만 시드 (시드 시간 단축, 정정 시연 보존)
+                // 메인 근태 화면은 DailyAttendance.firstClockIn/lastClockOut 에서 표시되므로 로그 누락 OK
+                if (clockIn != null && clockOut != null && !d.isBefore(logCutoff)) {
                     AttendanceLog logIn = AttendanceLog.builder()
                             .dailyAttendance(savedDaily)
                             .memberId(member.getMemberId())

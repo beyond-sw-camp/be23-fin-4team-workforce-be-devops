@@ -57,7 +57,7 @@ class AutoCreateTestData implements ApplicationRunner {
 
     /**
      * 데모 시드 토글 - 운영 배포 시 false 유지
-     * true 일 때만 createDemoCompanies() 호출 -> 회사 4 (당월/연봉제), 회사 5 (전월/호봉제) 생성
+     * true 일 때만 createDemoCompanies() 호출 -> 회사 4~6 (서울디지털테크/강남솔루션/판교크리에이션) 생성
      */
     @org.springframework.beans.factory.annotation.Value("${seed.demo.enabled:false}")
     private boolean seedDemoEnabled;
@@ -84,24 +84,22 @@ class AutoCreateTestData implements ApplicationRunner {
     }
 
     /**
-     * 데모 회사 셋업 - 36개월 풀 데이터 (Salary/Payroll/Ledger) 시드용
+     * 회사 3개 (서울디지털테크/강남솔루션/판교크리에이션), 각 18명 (인사6/개발6/기획6)
      */
     private void createDemoCompanies() {
         // 가상 IT 회사명
         String[] companyNames = {
                 "(주)서울디지털테크",
                 "(주)강남솔루션",
-                "(주)판교크리에이션",
-                "(주)역삼파트너스",
-                "(주)상도동테크놀로지"
+                "(주)판교크리에이션"
         };
         String[] companyDomains = {
-                "demo-current", "demo-prev", "demo-3", "demo-4", "demo-5"
+                "digitalTeck", "solution", "creation"
         };
-        String[] ceoNames = { "박정훈", "이서연", "한도윤", "최예린", "김지환" };
-        String[] adminNames = { "정인사", "김인사", "이인사", "박인사", "홍인사" };
+        String[] ceoNames = { "박정훈", "이서연", "한도윤" };
+        String[] adminNames = { "정직", "청렴", "결백" };
         for (int idx = 0; idx < companyNames.length; idx++) {
-            int adminSeq = 4 + idx; // admin 4 / admin 5
+            int adminSeq = 4 + idx; // admin 4 / admin 5 / admin 6
             String companyName = companyNames[idx];
             String adminEmail = "admin" + adminSeq + "@workforce.com";
 
@@ -131,63 +129,90 @@ class AutoCreateTestData implements ApplicationRunner {
                     OrganizationReqDto.builder().name("인사팀").parentId(topOrg.getOrganizationId()).build());
             UUID devTeamId = organizationService.createOrganization(adminId,
                     OrganizationReqDto.builder().name("개발팀").parentId(topOrg.getOrganizationId()).build());
+            UUID planTeamId = organizationService.createOrganization(adminId,
+                    OrganizationReqDto.builder().name("기획팀").parentId(topOrg.getOrganizationId()).build());
 
             // 직급/직책은 OrganizationService default 시드에서 이미 생성
+            // 직급: 부장, 차장, 과장, 대리, 주임, 사원
             List<JobGrade> grades = jobGradeRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
-            JobGrade seniorGrade = grades.stream().filter(g -> "과장".equals(g.getName())).findFirst().orElseThrow();
-            JobGrade juniorGrade = grades.stream().filter(g -> "사원".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade bujang = grades.stream().filter(g -> "부장".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade chajang = grades.stream().filter(g -> "차장".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade gwajang = grades.stream().filter(g -> "과장".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade daeri = grades.stream().filter(g -> "대리".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade juim = grades.stream().filter(g -> "주임".equals(g.getName())).findFirst().orElseThrow();
+            JobGrade sawon = grades.stream().filter(g -> "사원".equals(g.getName())).findFirst().orElseThrow();
 
+            // 직책: 팀장, 파트장, 팀원
             List<JobTitle> titles = jobTitleRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
             JobTitle teamLeaderTitle = titles.stream().filter(t -> "팀장".equals(t.getName())).findFirst().orElseThrow();
+            JobTitle partLeaderTitle = titles.stream().filter(t -> "파트장".equals(t.getName())).findFirst().orElseThrow();
             JobTitle memberTitle = titles.stream().filter(t -> "팀원".equals(t.getName())).findFirst().orElseThrow();
 
             List<Role> roles = roleRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
             Role hrManagerRole = roles.stream().filter(r -> r.getName().equals("인사 관리자")).findFirst().orElseThrow();
+            Role hrMemberRole = roles.stream().filter(r -> r.getName().equals("인사팀원")).findFirst().orElseThrow();
             Role teamLeaderRole = roles.stream().filter(r -> r.getName().equals("팀장")).findFirst().orElseThrow();
             Role employeeRole = roles.stream().filter(r -> r.getName().equals("일반 직원")).findFirst().orElseThrow();
 
-            // 직원 25명 - 한국 가상 인명, 입사일 분산
-            // 10년+ 5명, 5~9년 4명, 1~4년 11명, 1년 미만 5명
-            // i=0,13 = 팀장 (인사팀장/개발팀장), i=0~4 = senior(과장), 나머지 junior(사원)
+            // 직원 18명 - 인사6 / 개발6 / 기획6
             String[] demoNames = {
-                    "정수영", "한지호", "오미경", "강대훈", "윤재성",   // 10년+ (0~4)
-                    "박서연", "이준혁", "최유진", "임도현",             // 5~9년 (5~8)
-                    "조성훈", "황민지", "권시우", "송하늘", "안재현",
-                    "노유리", "유태민", "백서영", "문지원", "신경수",
-                    "오세린",                                          // 1~4년 (9~19)
-                    "차민준", "곽지수", "표시현", "전규민", "주하은"   // 1년 미만 (20~24)
+                    // 인사팀 (i=0~5)
+                    "정수영", "한지호", "오미경", "강대훈", "윤재성", "박서연",
+                    // 개발팀 (i=6~11)
+                    "이준혁", "최유진", "임도현", "조성훈", "황민지", "권시우",
+                    // 기획팀 (i=12~17)
+                    "송하늘", "안재현", "노유리", "유태민", "백서영", "문지원"
             };
             String[] demoInitials = {
-                    "JSY", "HJH", "OMK", "KDH", "YJS",
-                    "PSY", "LJH", "CYJ", "IDH",
-                    "JSH", "HMJ", "KSW", "SHN", "AJH",
-                    "NYR", "YTM", "BSY", "MJW", "SKS",
-                    "OSL",
-                    "CMJ", "GJS", "PSH", "JGM", "JHE"
+                    "JSY", "HJH", "OMK", "KDH", "YJS", "PSY",
+                    "LJH", "CYJ", "IDH", "JSH", "HMJ", "KSW",
+                    "SHN", "AJH", "NYR", "YTM", "BSY", "MJW"
+            };
+            // 입사일(개월 전) - 팀장은 장기근속, 신입까지 다양
+            int[] monthsAgo = {
+                    // 인사팀: 팀장(부장), 인사관리자(과장), 인사팀원x4
+                    144, 96, 60, 36, 18, 6,
+                    // 개발팀: 팀장(부장), 차장, 과장, 대리, 주임, 사원
+                    132, 84, 54, 30, 14, 4,
+                    // 기획팀: 팀장(부장), 과장, 대리, 대리, 주임, 사원
+                    120, 72, 42, 24, 10, 3
+            };
+            // i 별 직급/직책/role 분배
+            JobGrade[] gradeByIdx = {
+                    // 인사팀
+                    bujang, gwajang, daeri, juim, sawon, sawon,
+                    // 개발팀
+                    bujang, chajang, gwajang, daeri, juim, sawon,
+                    // 기획팀
+                    bujang, gwajang, daeri, daeri, juim, sawon
+            };
+            JobTitle[] titleByIdx = {
+                    // 인사팀
+                    teamLeaderTitle, partLeaderTitle, memberTitle, memberTitle, memberTitle, memberTitle,
+                    // 개발팀
+                    teamLeaderTitle, partLeaderTitle, memberTitle, memberTitle, memberTitle, memberTitle,
+                    // 기획팀
+                    teamLeaderTitle, partLeaderTitle, memberTitle, memberTitle, memberTitle, memberTitle
+            };
+            Role[] roleByIdx = {
+                    // 인사팀: 팀장, 인사관리자, 인사팀원x4
+                    teamLeaderRole, hrManagerRole, hrMemberRole, hrMemberRole, hrMemberRole, hrMemberRole,
+                    // 개발팀: 팀장, 일반x5
+                    teamLeaderRole, employeeRole, employeeRole, employeeRole, employeeRole, employeeRole,
+                    // 기획팀: 팀장, 일반x5
+                    teamLeaderRole, employeeRole, employeeRole, employeeRole, employeeRole, employeeRole
+            };
+            UUID[] orgByIdx = {
+                    hrTeamId, hrTeamId, hrTeamId, hrTeamId, hrTeamId, hrTeamId,
+                    devTeamId, devTeamId, devTeamId, devTeamId, devTeamId, devTeamId,
+                    planTeamId, planTeamId, planTeamId, planTeamId, planTeamId, planTeamId
             };
             LocalDate today = LocalDate.now();
-            // 입사일 - 인덱스 i 별 분포 (장기근속자가 앞쪽 인덱스)
-            int[] monthsAgo = {
-                    156, 144, 132, 120, 121, // 10년+ (13/12/11/10/10년)
-                    96, 84, 72, 60,           // 5~9년 (8/7/6/5년)
-                    48, 42, 36, 30, 26, 22, 18, 15, 12, 10, 9,
-                    6, 5, 4, 3, 2
-            };
 
             for (int i = 0; i < demoNames.length; i++) {
-                UUID teamId = (i < 13) ? hrTeamId : devTeamId;
-                // 10년+ 5명은 senior(과장), 나머지 junior(사원)
-                UUID jobGradeId = (i < 5) ? seniorGrade.getJobGradeId() : juniorGrade.getJobGradeId();
-                // 팀장: 인사팀장 i=0, 개발팀장 i=13
-                boolean isLead = (i == 0 || i == 13);
-                boolean isHrLead = (i == 0); // 인사팀장은 인사 관리자 권한 (조직개편/구성원 관리 등)
-                UUID jobTitleId = isLead ? teamLeaderTitle.getJobTitleId() : memberTitle.getJobTitleId();
-                UUID roleId = isHrLead ? hrManagerRole.getRoleId()
-                        : isLead ? teamLeaderRole.getRoleId()
-                        : employeeRole.getRoleId();
                 String email = "emp_demo" + adminSeq + "_" + (i + 1) + "@gmail.com";
 
                 memberService.createMember(adminId, admin.getDefaultPositionId(),
@@ -197,10 +222,10 @@ class AutoCreateTestData implements ApplicationRunner {
                                 .personalEmail(email)
                                 .joinDate(today.minusMonths(monthsAgo[i]))
                                 .employmentType(EmploymentType.FULL_TIME)
-                                .organizationId(teamId)
-                                .jobGradeId(jobGradeId)
-                                .jobTitleId(jobTitleId)
-                                .roleId(roleId)
+                                .organizationId(orgByIdx[i])
+                                .jobGradeId(gradeByIdx[i].getJobGradeId())
+                                .jobTitleId(titleByIdx[i].getJobTitleId())
+                                .roleId(roleByIdx[i].getRoleId())
                                 .build());
 
                 Member created = memberRepository.findByPersonalEmail(email).orElseThrow();
@@ -282,6 +307,11 @@ class AutoCreateTestData implements ApplicationRunner {
                     .findFirst()
                     .orElseThrow();
 
+            Role hrMemberRole = roles.stream()
+                    .filter(r -> r.getName().equals("인사팀원"))
+                    .findFirst()
+                    .orElseThrow();
+
             Role employeeRole = roles.stream()
                     .filter(r -> r.getName().equals("일반 직원"))
                     .findFirst()
@@ -336,8 +366,11 @@ class AutoCreateTestData implements ApplicationRunner {
                 UUID jobTitleId = (i == 0 || i == 5)
                         ? teamLeaderTitle.getJobTitleId()
                         : memberTitle.getJobTitleId();
+                // i=0 인사팀장, i=1~4 인사팀원, i=5 개발팀장, i=6~9 일반 직원
                 UUID roleId = (i == 0 || i == 5)
                         ? teamLeaderRole.getRoleId()
+                        : (i < 5)
+                        ? hrMemberRole.getRoleId()
                         : employeeRole.getRoleId();
 
                 memberService.createMember(

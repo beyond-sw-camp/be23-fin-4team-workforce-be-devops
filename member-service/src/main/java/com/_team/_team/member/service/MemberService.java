@@ -119,11 +119,12 @@ public class MemberService {
     // 온보딩 시 기본 역할 4개 + 권한 생성
     public void createDefaultRoles(Company company) {
 
-        // 1. 기본 역할 4개 생성
+        // 1. 기본 역할 5개 생성
         Role systemAdmin = createRole(company, "시스템 관리자", 1);
         Role hrManager = createRole(company, "인사 관리자", 2);
-        Role teamLeader = createRole(company, "팀장", 3);
-        Role employee = createRole(company, "일반 직원", 4);
+        Role hrMember = createRole(company, "인사팀원", 3);
+        Role teamLeader = createRole(company, "팀장", 4);
+        Role employee = createRole(company, "일반 직원", 5);
 
         // 2. 기본 권한 세팅
         List<RolePermission> rolePermissions = new ArrayList<>();
@@ -442,7 +443,7 @@ public class MemberService {
         boolean isSaasOperator = saasOperatorProperties.getSystemCompanyId() != null
                 && member.getCompany() != null
                 && saasOperatorProperties.getSystemCompanyId()
-                        .equals(member.getCompany().getCompanyId().toString());
+                .equals(member.getCompany().getCompanyId().toString());
         if (isSaasOperator) {
             String operatorAt = jwtTokenProvider.createAtToken(member, null);
             String operatorRt = jwtTokenProvider.createRtToken(member);

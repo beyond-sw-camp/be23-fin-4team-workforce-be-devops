@@ -81,6 +81,12 @@ spec:
                 secretKeyRef:
                   name: workforce-secrets
                   key: AWS_SECRET_KEY
+            - name: SEED_DEMO_ENABLED
+              value: "true"
+            - name: SPRING_QUARTZ_JDBC_INITIALIZE_SCHEMA
+              value: "always"
+            - name: SPRING_BATCH_JDBC_INITIALIZE_SCHEMA
+              value: "always"
           readinessProbe:
             httpGet:
               path: /actuator/health

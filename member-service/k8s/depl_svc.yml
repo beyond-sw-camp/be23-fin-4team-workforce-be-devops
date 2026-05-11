@@ -112,6 +112,8 @@ spec:
                 secretKeyRef:
                   name: workforce-secrets
                   key: HOLIDAY_API_KEY
+            - name: SEED_DEMO_ENABLED
+              value: "true"
           readinessProbe:
             httpGet:
               path: /actuator/health

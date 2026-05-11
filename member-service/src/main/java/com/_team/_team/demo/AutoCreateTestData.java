@@ -73,13 +73,13 @@ class AutoCreateTestData implements ApplicationRunner {
             log.info("[SEED] 기존 데이터 있음 - 기본 회사 시드 skip");
         }
 
-        // 데모 회사 (4, 5): toggle ON + admin4 미존재 시에만 시드 (기존 데이터 보존)
+        // 데모 회사 (1, 2, 3): toggle ON + admin1 미존재 시에만 시드 (기존 데이터 보존)
         if (seedDemoEnabled
-                && memberRepository.findByEmail("admin4@workforce.com").isEmpty()) {
-            log.info("[DEMO] seed.demo.enabled=true + admin4 미존재 - 데모 회사 시드 시작");
+                && memberRepository.findByEmail("admin1@workforce.com").isEmpty()) {
+            log.info("[DEMO] seed.demo.enabled=true + admin1 미존재 - 데모 회사 시드 시작");
             createDemoCompanies();
         } else {
-            log.info("[DEMO] 데모 회사 시드 skip (toggle={} / admin4 존재 가능)", seedDemoEnabled);
+            log.info("[DEMO] 데모 회사 시드 skip (toggle={} / admin1 존재 가능)", seedDemoEnabled);
         }
     }
 
@@ -99,7 +99,7 @@ class AutoCreateTestData implements ApplicationRunner {
         String[] ceoNames = { "박정훈", "이서연", "한도윤" };
         String[] adminNames = { "정직", "청렴", "결백" };
         for (int idx = 0; idx < companyNames.length; idx++) {
-            int adminSeq = 4 + idx; // admin 4 / admin 5 / admin 6
+            int adminSeq = 1 + idx; // admin 1 / admin 2 / admin 3
             String companyName = companyNames[idx];
             String adminEmail = "admin" + adminSeq + "@workforce.com";
 
@@ -239,7 +239,7 @@ class AutoCreateTestData implements ApplicationRunner {
     }
 
     private void createBaseCompanies() {
-        for (int c = 1; c <= 3; c++) {
+        for (int c = 4; c <= 6; c++) {
 
             // 1. 회사 온보딩
             companyService.onboarding(
@@ -377,7 +377,7 @@ class AutoCreateTestData implements ApplicationRunner {
                         adminId,
                         admin.getDefaultPositionId(),
                         MemberCreateReqDto.builder()
-                                .name(names.get(i) + c)
+                                .name(names.get(i))
                                 .englishInitial(initials.get(i))
                                 .personalEmail("emp" + c + "_"
                                         + (i + 1) + "@gmail.com")

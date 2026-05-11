@@ -55,8 +55,10 @@ public class ContractSeedService {
                 "{\"year\":%d,\"annualSalary\":%d,\"monthlyBase\":%d,\"effectiveFrom\":\"%s\"}",
                 year, annualSalary, baseSalary, effectiveFrom);
 
-        long seq = contractRepository.countByContractTypeInYear(ContractType.SALARY, year) + 1;
-        String contractNumber = String.format("연봉-%d-%04d", year, seq);
+        String sabunPart = (employeeSabun == null || employeeSabun.isBlank())
+                ? memberId.toString().substring(0, 8)
+                : employeeSabun;
+        String contractNumber = String.format("연봉-%s-%s", effectiveFrom, sabunPart);
 
         Contract contract = Contract.builder()
                 .companyId(companyId)

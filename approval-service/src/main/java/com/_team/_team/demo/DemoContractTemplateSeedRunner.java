@@ -1,5 +1,7 @@
 package com._team._team.demo;
 
+import com._team._team.approval.repository.ApprovalDocumentRepository;
+import com._team._team.approval.service.ApprovalDocumentService;
 import com._team._team.contract.repository.ContractTemplateRepository;
 import com._team._team.contract.service.ContractSeedService;
 import com._team._team.contract.service.ContractTemplateService;
@@ -33,13 +35,15 @@ public class DemoContractTemplateSeedRunner implements ApplicationRunner {
     private final ContractTemplateService contractTemplateService;
     private final ContractTemplateRepository contractTemplateRepository;
     private final ContractSeedService contractSeedService;
+    private final ApprovalDocumentService approvalDocumentService;
+    private final ApprovalDocumentRepository approvalDocumentRepository;
 
     @PersistenceContext
     private EntityManager em;
 
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
+        // @Transactional 의도적으로 미적용:
         // ===== 1) 모든 회사에 기본 템플릿 보충 =====
         @SuppressWarnings("unchecked")
         List<Object> companyRows = em.createNativeQuery(
@@ -63,6 +67,23 @@ public class DemoContractTemplateSeedRunner implements ApplicationRunner {
         }
         log.info("[CONTRACT-SEED] 템플릿 - 신규 {}개 회사, skip {}개 회사", created, skipped);
 
+        // ===== 1-2) 모든 회사에 기본 결재 양식 보충 =====
+        int docCreated = 0, docSkipped = 0;
+        for (Object row : companyRows) {
+            UUID companyId = toUuid(row);
+            if (companyId == null) continue;
+            boolean hasAny = !approvalDocumentRepository.findByCompanyId(companyId).isEmpty();
+            if (hasAny) { docSkipped++; continue; }
+            try {
+                approvalDocumentService.initDefaultDocuments(companyId);
+                docCreated++;
+                log.info("[APPROVAL-SEED] 기본 결재 양식 생성 companyId={}", companyId);
+            } catch (Exception e) {
+                log.warn("[APPROVAL-SEED] 결재 양식 생성 실패 companyId={} - {}", companyId, e.getMessage());
+            }
+        }
+        log.info("[APPROVAL-SEED] 결재 양식 - 신규 {}개 회사, skip {}개 회사", docCreated, docSkipped);
+
         // ===== 2) 연봉제 회사 직원별 매년 SALARY Contract 시드 =====
         seedSalaryContracts();
     }
@@ -82,7 +103,6 @@ public class DemoContractTemplateSeedRunner implements ApplicationRunner {
                 JOIN member_position mp ON mp.member_position_id = m.default_position_id
                 JOIN organization o ON o.organization_id = mp.organization_id
                 JOIN job_title jt ON jt.job_title_id = mp.job_title_id
-                WHERE s.del_yn = 'N'
                 ORDER BY s.member_id, s.effective_from
                 """;
 

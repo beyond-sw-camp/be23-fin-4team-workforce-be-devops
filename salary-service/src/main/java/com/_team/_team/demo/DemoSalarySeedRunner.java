@@ -284,7 +284,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 회사별 정책 시드 - 멱등 처리
+     * 회사별 정책 시드 - 멱등 처리 (이미 있으면 skip)
      */
     public void seedCompany(String domain, boolean usePayGrade,
                             PayCycleType cycleType, int payDay) {
@@ -1337,7 +1337,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     private void saveAllowance(UUID companyId, UUID memberId, UUID templateId,
-                                long amount, LocalDate effectiveFrom, String reason) {
+                               long amount, LocalDate effectiveFrom, String reason) {
         MemberAllowance allowance = MemberAllowance.builder()
                 .memberId(memberId)
                 .companyId(companyId)
@@ -1600,8 +1600,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                             : existingStatus == AttendanceStatus.HALF ? halfPmTypeId : null;
                     if (typeId != null
                             && leaveRequestRepository
-                                    .findAllByMemberIdAndStartDateAndDelYn(member.getMemberId(), d, "N")
-                                    .isEmpty()) {
+                            .findAllByMemberIdAndStartDateAndDelYn(member.getMemberId(), d, "N")
+                            .isEmpty()) {
                         double usage = existingStatus == AttendanceStatus.LEAVE ? 1.0 : 0.5;
                         String reason = existingStatus == AttendanceStatus.LEAVE
                                 ? "연차 사용 (시드 백필)"

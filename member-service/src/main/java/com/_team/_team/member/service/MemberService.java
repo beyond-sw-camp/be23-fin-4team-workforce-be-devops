@@ -120,41 +120,51 @@ public class MemberService {
     public void createDefaultRoles(Company company) {
 
         // 1. 기본 역할 5개 생성
-        Role systemAdmin = createRole(company, "시스템 관리자", 1);
-        Role hrManager = createRole(company, "인사 관리자", 2);
-        Role hrMember = createRole(company, "인사팀원", 3);
+        Role systemAdmin = createRole(company, "관리자", 1);
+        Role hrLeader = createRole(company, "인사 팀장", 2);
+        Role hrMember = createRole(company, "인사 팀원", 3);
         Role teamLeader = createRole(company, "팀장", 4);
-        Role employee = createRole(company, "일반 직원", 5);
+        Role employee = createRole(company, "직원", 5);
 
         // 2. 기본 권한 세팅
         List<RolePermission> rolePermissions = new ArrayList<>();
 
-        // 인사 관리자 권한
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.MEMBER,
+        // ----- 인사 팀장 + 인사 팀원 공통 권한 -----
+        // (목표/평가만 분기, 나머지는 동일)
+        for (Role hrRole : List.of(hrLeader, hrMember)) {
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.MEMBER,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.ORGANIZATION,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.SALARY,
+                    List.of(Action.READ), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.ATTENDANCE,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.APPROVAL,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.ROLE,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.ESG,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.MEETING,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+            rolePermissions.addAll(buildRolePermissions(hrRole, Resource.CALENDAR,
+                    List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
+        }
+
+        // ----- 인사 팀장: 목표/평가 풀 권한 -----
+        rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.GOAL,
                 List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.ORGANIZATION,
-                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.SALARY,
-                List.of(Action.READ), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.ATTENDANCE,
-                List.of(Action.READ, Action.UPDATE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.APPROVAL,
-                List.of(Action.READ), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.ROLE,
-                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.GOAL,
-                List.of(Action.READ), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.EVALUATION,
-                List.of(Action.READ), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.ESG,
-                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.MEETING,
-                List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
-        rolePermissions.addAll(buildRolePermissions(hrManager, Resource.CALENDAR,
+        rolePermissions.addAll(buildRolePermissions(hrLeader, Resource.EVALUATION,
                 List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.COMPANY));
 
+        // ----- 인사 팀원: 목표/평가 조회만 -----
+        rolePermissions.addAll(buildRolePermissions(hrMember, Resource.GOAL,
+                List.of(Action.READ), PermissionRange.COMPANY));
+        rolePermissions.addAll(buildRolePermissions(hrMember, Resource.EVALUATION,
+                List.of(Action.READ), PermissionRange.COMPANY));
 
-        // 팀장 권한
+        // ----- 팀장 권한 -----
         rolePermissions.addAll(buildRolePermissions(teamLeader, Resource.MEMBER,
                 List.of(Action.READ), PermissionRange.TEAM));
         rolePermissions.addAll(buildRolePermissions(teamLeader, Resource.ATTENDANCE,
@@ -174,8 +184,7 @@ public class MemberService {
         rolePermissions.addAll(buildRolePermissions(teamLeader, Resource.CALENDAR,
                 List.of(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE), PermissionRange.TEAM));
 
-
-        // 일반 직원 권한
+        // ----- 직원 권한 -----
         rolePermissions.addAll(buildRolePermissions(employee, Resource.MEMBER,
                 List.of(Action.READ), PermissionRange.SELF));
         rolePermissions.addAll(buildRolePermissions(employee, Resource.ATTENDANCE,
@@ -443,7 +452,7 @@ public class MemberService {
         boolean isSaasOperator = saasOperatorProperties.getSystemCompanyId() != null
                 && member.getCompany() != null
                 && saasOperatorProperties.getSystemCompanyId()
-                .equals(member.getCompany().getCompanyId().toString());
+                        .equals(member.getCompany().getCompanyId().toString());
         if (isSaasOperator) {
             String operatorAt = jwtTokenProvider.createAtToken(member, null);
             String operatorRt = jwtTokenProvider.createRtToken(member);

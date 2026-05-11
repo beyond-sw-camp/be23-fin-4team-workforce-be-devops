@@ -49,6 +49,7 @@ public class ChatService {
     // 챗봇 질문
     public ChatResDto chat(UUID memberId, UUID companyId,
                            UUID memberPositionId, String authorization,
+                           String isHrAdminHeader,
                            ChatReqDto reqDto) {
         try {
 //            // 1. SemanticMemory KNN 검색
@@ -91,6 +92,7 @@ public class ChatService {
                     .conversationHistory(conversationHistory)
                     .sessionId(reqDto.getSessionId())
                     .action(reqDto.getAction())
+                    .isHrAdmin("YES".equalsIgnoreCase(isHrAdminHeader))
                     .build();
 
 

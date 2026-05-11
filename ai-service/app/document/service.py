@@ -145,6 +145,21 @@ def extract_keywords(text: str) -> list[str]:
     return []
 
 
+def extract_menu_footer(content: str) -> str:
+    """
+    섹션에서 '관련 메뉴:' / '화면명:' 두 줄을 추출해 청크 끝에 부착할 footer 생성.
+
+    청크 분할 시 메뉴/화면명 줄이 마지막 청크에만 들어가
+    다른 청크가 매칭됐을 때 LLM이 메뉴 안내를 출력하지 못하는 문제 해결용.
+    db_sync 등 메뉴 줄이 없는 문서는 빈 문자열 반환.
+    """
+    menu_match = re.search(r'관련 메뉴:\s*[^\n]+', content)
+    screen_match = re.search(r'화면명:\s*[^\n]+', content)
+    if menu_match and screen_match:
+        return f"\n\n{menu_match.group(0).strip()}\n{screen_match.group(0).strip()}"
+    return ""
+
+
 def chunk_section(section: dict, max_chunk_size: int = 1500) -> list[str]:
     content = section["full_content"]
 
@@ -178,11 +193,12 @@ async def process_document(
         company_id: str,
         document_name: str,
         text: str,
-        layer: str = "hr_uploaded"):
+        layer: str = "hr_uploaded",
+        is_hr: bool = False):
 
     logger.info(
         f"[process_document] 시작: {document_name}, "
-        f"{len(text)}자, layer={layer}"
+        f"{len(text)}자, layer={layer}, is_hr={is_hr}"
     )
 
     preprocessed_text = preprocess_text(text)
@@ -191,15 +207,27 @@ async def process_document(
     if not sections:
         raise ValueError("문서에서 섹션을 추출하지 못했습니다")
 
+    # 문서 전체에서 footer 한 번 추출 (중간 섹션에 메뉴/화면명 없어도 부착 가능)
+    document_menu_footer = extract_menu_footer(preprocessed_text)
+
     vectors = []
     global_chunk_index = 0
 
     for section_idx, section in enumerate(sections):
         chunks = chunk_section(section, max_chunk_size=1500)
 
+        # 섹션에서 추출 → 없으면 문서 전체 footer 사용
+        section_menu_footer = extract_menu_footer(section["full_content"])
+        menu_footer = section_menu_footer or document_menu_footer
+
         for chunk_idx, chunk_text_content in enumerate(chunks):
             if len(chunk_text_content.strip()) < 20:
                 continue
+
+            # 청크에 메뉴 줄이 없고 footer가 있으면 끝에 부착
+            # → 모든 청크가 매칭되어도 메뉴 안내 가능
+            if menu_footer and "관련 메뉴:" not in chunk_text_content:
+                chunk_text_content = chunk_text_content + menu_footer
 
             embedding = get_embedding(chunk_text_content)
 
@@ -218,6 +246,7 @@ async def process_document(
                     "section_index": section_idx,
                     "chunk_in_section": chunk_idx,
                     "layer": layer,
+                    "is_hr": is_hr,
                 }
             })
             global_chunk_index += 1

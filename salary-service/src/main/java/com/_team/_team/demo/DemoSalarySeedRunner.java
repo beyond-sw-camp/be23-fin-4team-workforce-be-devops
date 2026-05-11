@@ -284,14 +284,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 회사별 정책 시드 - 멱등 처리 (이미 있으면 skip)
-     *
-     * 의도적으로 @Transactional 미적용:
-     *  - 내부에서 호출하는 PayrollService.createPayroll 이 @Transactional 이라 같은 Tx 에 join
-     *  - 그 중 한 건 throw 시 Spring 이 Tx 를 rollback-only 로 표시
-     *  - try-catch 로 잡아도 표시는 유지 -> seedCompany 종료 시 UnexpectedRollbackException
-     *  - 결과적으로 SalaryPolicy / Salary / Ledger 등 앞서 commit 됐어야 할 데이터가 모두 롤백됨
-     *  -> 각 repository save / service call 이 자체 Tx 로 독립 commit 되도록 클래스/메서드 단위 @Transactional 제거
+     * 회사별 정책 시드 - 멱등 처리
      */
     public void seedCompany(String domain, boolean usePayGrade,
                             PayCycleType cycleType, int payDay) {

@@ -52,22 +52,25 @@ public class ChatService {
                            String isHrAdminHeader,
                            ChatReqDto reqDto) {
         try {
-//            // 1. SemanticMemory KNN 검색
-//            String cachedAnswer = semanticMemoryService.findBotReplyWithKnn(
-//                    companyId.toString(),
-//                    memberId.toString(),
-//                    reqDto.getQuestion());
-//
-//            if (cachedAnswer != null) {
-//                log.info("SemanticMemory 캐시 히트");
-//                chatHistoryRepository.save(ChatHistory.builder()
-//                        .memberId(memberId)
-//                        .companyId(companyId)
-//                        .question(reqDto.getQuestion())
-//                        .answer(cachedAnswer)
-//                        .build());
-//                return ChatResDto.builder().answer(cachedAnswer).build();
-//            }
+            // 1. SemanticMemory KNN 검색 (실제 질문일 때만)
+            if (reqDto.getQuestion() != null && !reqDto.getQuestion().isBlank()) {
+                String cachedAnswer = semanticMemoryService.findBotReplyWithKnn(
+                        companyId.toString(),
+                        memberId.toString(),
+                        reqDto.getQuestion());
+
+                if (cachedAnswer != null) {
+                    log.info("SemanticMemory 캐시 히트");
+                    chatHistoryRepository.save(ChatHistory.builder()
+                            .memberId(memberId)
+                            .companyId(companyId)
+                            .question(reqDto.getQuestion())
+                            .answer(cachedAnswer)
+                            .build());
+                    return ChatResDto.builder().answer(cachedAnswer).build();
+                }
+            }
+
 
             // 1.5. 최근 대화 이력 조회 (액션 흐름 진행 중이면 제외)
             // 액션 흐름 진행 중이거나, 첫 질문에 ACTION 키워드가 있으면 이력 제외

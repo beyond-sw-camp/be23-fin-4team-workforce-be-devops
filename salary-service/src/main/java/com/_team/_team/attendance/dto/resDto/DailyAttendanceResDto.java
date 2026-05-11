@@ -42,6 +42,9 @@ public class DailyAttendanceResDto {
     /** 출장/외근 */
     private WorkTripType workTripType;
 
+    /** 조퇴계 결재 승인 여부 - Y면 상태 표시/카운트에 '조퇴' 반영 */
+    private String earlyLeaveExcusedYn;
+
 
     public static DailyAttendanceResDto fromEntity(DailyAttendance daily) {
         WorkTripType tripType = null;
@@ -65,6 +68,7 @@ public class DailyAttendanceResDto {
                 .overtimeMinutes(daily.getOvertimeMinutes())
                 .correctionState(CorrectionState.NORMAL)   // 기본값. Service 에서 보정
                 .workTripType(tripType)
+                .earlyLeaveExcusedYn(daily.getEarlyLeaveExcusedYn())
                 .build();
     }
 

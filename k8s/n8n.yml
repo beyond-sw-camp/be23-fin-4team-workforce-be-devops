@@ -55,8 +55,6 @@ spec:
               value: "http://n8n-service:5678/"
             - name: GENERIC_TIMEZONE
               value: "Asia/Seoul"
-            - name: TZ
-              value: "Asia/Seoul"
             - name: N8N_RUNNERS_ENABLED
               value: "true"
             - name: OPENAI_API_KEY

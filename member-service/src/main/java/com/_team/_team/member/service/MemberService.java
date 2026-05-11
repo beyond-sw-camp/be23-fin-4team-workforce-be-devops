@@ -222,7 +222,7 @@ public class MemberService {
         Member admin = Member.builder()
                 .company(company)
                 .email(reqDto.getAdminEmail())
-                .password(passwordEncoder.encode(reqDto.getAdminPassword())) // 본인 비밀번호
+                .password(passwordEncoder.encode(reqDto.getAdminPassword()))
                 .name(reqDto.getAdminName())
                 .memberStatus(MemberStatus.ACTIVE)
                 .accountStatus(AccountStatus.ACTIVE)

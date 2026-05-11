@@ -50,3 +50,4 @@
 - CONFIRMED: 최종 등급 확정
 - SKIPPED_LEAVER: 퇴사 등으로 평가 제외
 
+

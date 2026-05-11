@@ -152,10 +152,10 @@ class AutoCreateTestData implements ApplicationRunner {
 
             List<Role> roles = roleRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
-            Role hrManagerRole = roles.stream().filter(r -> r.getName().equals("인사 관리자")).findFirst().orElseThrow();
-            Role hrMemberRole = roles.stream().filter(r -> r.getName().equals("인사팀원")).findFirst().orElseThrow();
+            Role hrManagerRole = roles.stream().filter(r -> r.getName().equals("인사 팀장")).findFirst().orElseThrow();
+            Role hrMemberRole = roles.stream().filter(r -> r.getName().equals("인사 팀원")).findFirst().orElseThrow();
             Role teamLeaderRole = roles.stream().filter(r -> r.getName().equals("팀장")).findFirst().orElseThrow();
-            Role employeeRole = roles.stream().filter(r -> r.getName().equals("일반 직원")).findFirst().orElseThrow();
+            Role employeeRole = roles.stream().filter(r -> r.getName().equals("직원")).findFirst().orElseThrow();
 
             // 직원 18명 - 인사6 / 개발6 / 기획6
             String[] demoNames = {
@@ -308,12 +308,12 @@ class AutoCreateTestData implements ApplicationRunner {
                     .orElseThrow();
 
             Role hrMemberRole = roles.stream()
-                    .filter(r -> r.getName().equals("인사팀원"))
+                    .filter(r -> r.getName().equals("인사 팀원"))
                     .findFirst()
                     .orElseThrow();
 
             Role employeeRole = roles.stream()
-                    .filter(r -> r.getName().equals("일반 직원"))
+                    .filter(r -> r.getName().equals("직원"))
                     .findFirst()
                     .orElseThrow();
 

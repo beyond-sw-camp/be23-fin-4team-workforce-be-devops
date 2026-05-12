@@ -17,12 +17,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +34,14 @@ public class ChatService {
     private final SemanticMemoryService semanticMemoryService;
     private final ObjectMapper objectMapper;
 
+    // 캐시 우회 대상 응답 타입 (ACTION/CALENDAR_ACTION 응답)
+    private static final Set<String> NON_CACHEABLE_TYPES = Set.of(
+            "ask", "confirm", "redirect_to_form", "cancelled", "error"
+    );
+
+    // 캐시 우회 키워드 패턴 (ACTION 흐름 의도)
+    private static final String ACTION_KEYWORD_PATTERN =
+            ".*(작성|올려|올리기|써줘|신청서|일정|등록해줘|잡아줘|미팅|회의|예약|스케줄).*";
 
     @Value("${n8n.webhook.url}")
     private String n8nWebhookUrl;
@@ -52,8 +60,17 @@ public class ChatService {
                            String isHrAdminHeader,
                            ChatReqDto reqDto) {
         try {
-            // 1. SemanticMemory KNN 검색 (실제 질문일 때만)
-            if (reqDto.getQuestion() != null && !reqDto.getQuestion().isBlank()) {
+            // 1.5. 액션 흐름 여부 판단 (캐시 우회 + 이력 제외에 공통 사용)
+            boolean isActionFlow = reqDto.getSessionId() != null || reqDto.getAction() != null;
+            boolean hasActionKeyword = reqDto.getQuestion() != null
+                    && reqDto.getQuestion().matches(ACTION_KEYWORD_PATTERN);
+            boolean isCacheable = reqDto.getQuestion() != null
+                    && !reqDto.getQuestion().isBlank()
+                    && !isActionFlow
+                    && !hasActionKeyword;
+
+            // 1. SemanticMemory KNN 검색 (캐시 가능한 경우만)
+            if (isCacheable) {
                 String cachedAnswer = semanticMemoryService.findBotReplyWithKnn(
                         companyId.toString(),
                         memberId.toString(),
@@ -71,21 +88,15 @@ public class ChatService {
                 }
             }
 
-
-            // 1.5. 최근 대화 이력 조회 (액션 흐름 진행 중이면 제외)
-            // 액션 흐름 진행 중이거나, 첫 질문에 ACTION 키워드가 있으면 이력 제외
+            // 2. 최근 대화 이력 조회 (액션 흐름 진행 중이면 제외)
             String conversationHistory;
-            boolean isActionFlow = reqDto.getSessionId() != null || reqDto.getAction() != null;
-            boolean hasActionKeyword = reqDto.getQuestion() != null
-                    && reqDto.getQuestion().matches(".*(작성|올려|올리기|써줘|신청서).*");
-
             if (isActionFlow || hasActionKeyword) {
                 conversationHistory = "";
             } else {
                 conversationHistory = buildConversationHistory(memberId, companyId);
             }
 
-            // 2. n8n 호출
+            // 3. n8n 호출
             ChatN8nReqDto n8nReqDto = ChatN8nReqDto.builder()
                     .question(reqDto.getQuestion())
                     .memberId(memberId.toString())
@@ -98,14 +109,13 @@ public class ChatService {
                     .isHrAdmin("YES".equalsIgnoreCase(isHrAdminHeader))
                     .build();
 
-
             ResponseEntity<String> response =
                     restTemplate.postForEntity(
                             n8nWebhookUrl, n8nReqDto, String.class);
 
             log.info("n8n raw 응답: {}", response.getBody());
 
-            // 3. body null 체크
+            // 4. body null 체크
             if (response.getBody() == null || response.getBody().isBlank()) {
                 log.error("n8n 응답 body null - status: {}", response.getStatusCode());
                 throw new BusinessException(
@@ -113,14 +123,14 @@ public class ChatService {
                         "챗봇 서비스 응답이 없습니다.");
             }
 
-            // 4. String → Map 파싱
+            // 5. String → Map 파싱
             ObjectMapper objectMapper = new ObjectMapper();
             Map<String, Object> bodyMap = objectMapper.readValue(
                     response.getBody(), Map.class);
 
             String answer = (String) bodyMap.get("answer");
 
-// 5. answer null 체크
+            // 6. answer null 체크
             if (answer == null) {
                 log.error("n8n 응답 answer 필드 null - body: {}", response.getBody());
                 throw new BusinessException(
@@ -128,8 +138,14 @@ public class ChatService {
                         "챗봇 서비스 응답 형식이 올바르지 않습니다.");
             }
 
-// 6. Redis Stack 저장 (질문이 있을 때만 — 버튼 클릭은 question이 빈 문자열)
-            if (reqDto.getQuestion() != null && !reqDto.getQuestion().isBlank()) {
+            // 7. Redis Stack 저장 (캐시 가능 + 응답 타입이 일반 답변일 때만)
+            String responseType = bodyMap.get("type") != null
+                    ? bodyMap.get("type").toString()
+                    : null;
+            boolean isActionResponse = responseType != null
+                    && NON_CACHEABLE_TYPES.contains(responseType);
+
+            if (isCacheable && !isActionResponse) {
                 UUID uuidKey = UUID.randomUUID();
                 semanticMemoryService.saveToRedis(
                         memberId.toString(), companyId.toString(),
@@ -137,9 +153,12 @@ public class ChatService {
                 semanticMemoryService.saveToRedis(
                         memberId.toString(), companyId.toString(),
                         "BOT", answer, uuidKey);
+            } else {
+                log.info("캐시 저장 우회: isCacheable={}, responseType={}",
+                        isCacheable, responseType);
             }
 
-// 7. DB 저장 (액션 흐름이 아닐 때만 — 또는 사용자 의미 있는 메시지일 때만)
+            // 8. DB 저장 (질문이 빈 문자열이면 버튼 라벨로 대체)
             String questionForHistory = reqDto.getQuestion() != null && !reqDto.getQuestion().isBlank()
                     ? reqDto.getQuestion()
                     : "[버튼: " + reqDto.getAction() + "]";
@@ -151,7 +170,7 @@ public class ChatService {
                     .answer(answer)
                     .build());
 
-// 8. 응답 빌드 (액션 필드들 매핑)
+            // 9. 응답 빌드 (액션 필드들 매핑)
             return buildChatResDto(answer, bodyMap);
 
         } catch (BusinessException e) {

@@ -1088,25 +1088,17 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         if (members == null || members.isEmpty()) return;
 
         LocalDate today = LocalDate.now();
-        int earliestYear = members.stream()
-                .map(MemberResDto::getJoinDate)
-                .filter(java.util.Objects::nonNull)
-                .map(LocalDate::getYear)
-                .min(Integer::compareTo)
-                .orElse(today.getYear());
-
-        // 매년 1/1 호출만 (회계연도 회사 부여) - 입사 기념일 loop 는 RPC 부하 커서 제거
-        // 입사일 정책 회사도 1/1 호출만으로 fallback (정확도 약간 떨어지지만 시드 시간 큰 단축)
-        for (int y = earliestYear; y <= today.getYear(); y++) {
-            LocalDate base = LocalDate.of(y, 1, 1);
-            if (base.isAfter(today)) continue;
+        // 현재 연도 1/1만 호출 - LeaveGrantWorker 가 근속 연수 기반으로 정확한 일수 부여
+        // (12년차 → 19일, 5년차 → 17일 등). 매년 누적 부여하면 만료 처리 안 돼 잔고 누적 문제 발생.
+        LocalDate base = LocalDate.of(today.getYear(), 1, 1);
+        if (!base.isAfter(today)) {
             try {
                 leaveGrantWorker.runForCompany(companyId, base);
             } catch (Exception e) {
                 log.warn("[DEMO-SEED] LeaveGrantWorker(1/1) 실패 base={} - {}", base, e.getMessage());
             }
         }
-        log.info("[DEMO-SEED] historical 연차 부여 완료 companyId={} 시작연도={}", companyId, earliestYear);
+        log.info("[DEMO-SEED] 연차 부여 완료 companyId={} (현재 연도만)", companyId);
     }
 
     /**

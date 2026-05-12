@@ -7,6 +7,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
+import java.util.TimeZone;
+
 @SpringBootApplication(scanBasePackages = "com._team._team")
 @EnableJpaAuditing
 @EnableAspectJAutoProxy
@@ -14,6 +16,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 @EnableCaching
 public class SalaryApplication {
 	public static void main(String[] args) {
+		// JVM TZ UTC 고정 - 모든 LocalDateTime.now() 가 UTC 시각 반환, 프론트 dayjs.utc().tz('Asia/Seoul') 와 짝
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 		SpringApplication.run(SalaryApplication.class, args);
 	}
 }

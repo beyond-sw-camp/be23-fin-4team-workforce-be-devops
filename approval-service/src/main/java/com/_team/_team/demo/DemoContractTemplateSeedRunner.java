@@ -91,8 +91,10 @@ public class DemoContractTemplateSeedRunner implements ApplicationRunner {
     private void seedSalaryContracts() {
         // salary_policy.use_pay_grade_yn = 'N' 인 회사의 모든 salary 행 + 직원 정보 조인 조회
         // 컬럼/테이블명은 Hibernate snake_case 기본 매핑 가정
+        // SELECT DISTINCT - salary_policy / member_position 등이 회사당 여러 행이면 cross-product 로
+        // 같은 (member_id, effective_from) 이 중복 반환되어 contractNumber UNIQUE 충돌. 중복 제거 필수.
         String sql = """
-                SELECT s.member_id, s.company_id, s.base_salary, s.effective_from,
+                SELECT DISTINCT s.member_id, s.company_id, s.base_salary, s.effective_from,
                        m.name, m.sabun,
                        o.name AS org_name, jt.name AS job_title_name
                 FROM salary s

@@ -180,6 +180,10 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
     Optional<MemberBalance> findByCompanyIdAndMemberIdAndBalanceTypeAndDelYn(
             UUID companyId, UUID memberId, BalanceType balanceType, String delYn);
 
+    // 같은 (company, member, balanceType) 잔고가 2건 이상 있을 때를 위한 방어 - 시드 중복/누적 케이스
+    List<MemberBalance> findAllByCompanyIdAndMemberIdAndBalanceTypeAndDelYn(
+            UUID companyId, UUID memberId, BalanceType balanceType, String delYn);
+
     /**
      * 연차사용촉진제 대상 잔고 조회
      * 회사 소속 ANNUAL 타입이면서 만료일이 targetDate 이고 잔여일수 > 0

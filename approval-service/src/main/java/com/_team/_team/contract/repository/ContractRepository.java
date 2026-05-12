@@ -56,4 +56,7 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
             "  AND c.delYn = 'N'")
     long countByContractTypeInYear(@Param("contractType") ContractType contractType,
                                    @Param("year") int year);
+
+    // 시드 멱등용 - contractNumber UNIQUE 직접 체크 (delYn 무관, soft-delete된 행도 unique 키 점유)
+    boolean existsByContractNumber(String contractNumber);
 }

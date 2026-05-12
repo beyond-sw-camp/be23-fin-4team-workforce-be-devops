@@ -15,8 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -161,9 +163,11 @@ public class AttendanceLogService {
     }
 
     /**
-     * 이벤트 시간 결정
+     * 이벤트 시간 결정 - JVM TZ 무관 항상 UTC LocalDateTime 으로 저장
+     * 프론트 dayjs.utc(iso).tz('Asia/Seoul') 변환으로 KST 표시
      */
     private LocalDateTime resolveEventTime(LocalDateTime eventTime) {
-        return eventTime != null ? eventTime : LocalDateTime.now();
+        return eventTime != null ? eventTime
+                : LocalDateTime.ofInstant(Instant.now(), ZoneOffset.UTC);
     }
 }

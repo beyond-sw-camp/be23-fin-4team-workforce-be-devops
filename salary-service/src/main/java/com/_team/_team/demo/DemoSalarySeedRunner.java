@@ -108,6 +108,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
@@ -285,6 +287,13 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
     /**
      * 회사별 정책 시드 - 멱등 처리 (이미 있으면 skip)
+     *
+     * 의도적으로 @Transactional 미적용:
+     *  - 내부에서 호출하는 PayrollService.createPayroll 이 @Transactional 이라 같은 Tx 에 join
+     *  - 그 중 한 건 throw 시 Spring 이 Tx 를 rollback-only 로 표시
+     *  - try-catch 로 잡아도 표시는 유지 -> seedCompany 종료 시 UnexpectedRollbackException
+     *  - 결과적으로 SalaryPolicy / Salary / Ledger 등 앞서 commit 됐어야 할 데이터가 모두 롤백됨
+     *  -> 각 repository save / service call 이 자체 Tx 로 독립 commit 되도록 클래스/메서드 단위 @Transactional 제거
      */
     public void seedCompany(String domain, boolean usePayGrade,
                             PayCycleType cycleType, int payDay) {
@@ -594,8 +603,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 .toList();
         if (targets.isEmpty()) return;
 
-        // 회사당 5명 선택 + 월 신청 건수 분배
-        int[] perMonthByIdx = { 10, 10, 5, 5, 2 };
+        // 회사당 5명 선택 + 월 신청 건수 분배 - 한도(주12h/월52h) 여유 있게 보수적으로
+        // 2시간 × 6건 = 월 최대 12h, 1주 기준 약 1~2건 = 주 2~4h
+        int[] perMonthByIdx = { 6, 6, 4, 3, 2 };
         int picked = Math.min(perMonthByIdx.length, targets.size());
 
         // 회사 내 기존 OT 시드 확인 (첫 대상 직원의 데이터로 멱등)
@@ -638,8 +648,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                                 .reason("프로젝트 마감 대응 (시드)")
                                 .approvalStatus(OvertimeApprovalStatus.APPROVED)
                                 .approvedMinutes(120)
-                                .submittedAt(target.minusDays(1).atTime(9, 0))
-                                .decidedAt(target.minusDays(1).atTime(14, 0))
+                                .submittedAt(kstAt(target.minusDays(1), 9, 0))
+                                .decidedAt(kstAt(target.minusDays(1), 14, 0))
                                 .decidedBy(SYSTEM_ACTOR)
                                 .build();
                         overtimeRequestRepository.save(req);
@@ -657,10 +667,10 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     /**
-     * 직원당 분기 1건 LeaveRequest 추가 (최근 12개월만)
-     * - 분기 가운데 달 15일 (평일 보정)
+     * 직원당 올해 LeaveRequest 최대 5건 시드 (APPROVED, 연차 1일)
+     * - 올해 1월부터 지난달까지 매월 15일 (평일 보정), 최대 5건까지만 생성
      * - 그날에 이미 LeaveRequest 있으면 skip (멱등)
-     * - 시드 시간 단축: 직원당 매월 → 분기, 최근 12개월만
+     * - 잔여 = 부여(15) - 사용(최대 5) = 10~15일 데모 목적
      */
     private void seedAdditionalLeaveRequests(UUID companyId) {
         UUID annualTypeId = companyLeaveTypeRepository
@@ -684,18 +694,17 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
         LocalDate today = LocalDate.now();
         YearMonth lastMonth = YearMonth.from(today).minusMonths(1);
-        // 최근 12개월만 시드
-        YearMonth windowStart = YearMonth.from(today).minusMonths(12);
+        YearMonth thisYearStart = YearMonth.of(today.getYear(), 1);
         int totalCreated = 0;
+        int maxPerMember = 5;
 
         for (MemberResDto m : members) {
             if (m.getJoinDate() == null) continue;
-            YearMonth joinYm = YearMonth.from(m.getJoinDate());
-            YearMonth start = joinYm.isAfter(windowStart) ? joinYm : windowStart;
-            // 분기당 1건만 - 2,5,8,11월(분기 중간 달)에 시드
-            for (YearMonth ym = start; !ym.isAfter(lastMonth); ym = ym.plusMonths(1)) {
-                int mon = ym.getMonthValue();
-                if (mon != 2 && mon != 5 && mon != 8 && mon != 11) continue;
+            // 올해 1월부터 시작, 입사일이 더 늦으면 입사월부터
+            YearMonth memberStart = YearMonth.from(m.getJoinDate());
+            YearMonth start = memberStart.isAfter(thisYearStart) ? memberStart : thisYearStart;
+            int perMember = 0;
+            for (YearMonth ym = start; !ym.isAfter(lastMonth) && perMember < maxPerMember; ym = ym.plusMonths(1)) {
                 LocalDate target = ym.atDay(Math.min(15, ym.lengthOfMonth()));
                 // 평일 보정 (토/일이면 직전 금요일로)
                 while (target.getDayOfWeek() == DayOfWeek.SATURDAY
@@ -716,19 +725,29 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .endDate(target)
                         .usageDays(1.0)
                         .deductedBalanceType(BalanceType.ANNUAL)
-                        .reason("월별 연차 사용 (시드)")
+                        .reason("올해 연차 사용 (시드)")
                         .approvalStatus(LeaveApprovalStatus.APPROVED)
                         .requestedBy(m.getMemberId())
-                        .requestedAt(target.minusDays(7).atTime(10, 0))
+                        .requestedAt(kstAt(target.minusDays(7), 10, 0))
                         .decidedBy(SYSTEM_ACTOR)
-                        .decidedAt(target.minusDays(5).atTime(15, 0))
+                        .decidedAt(kstAt(target.minusDays(5), 15, 0))
                         .initiator(LeaveInitiator.SELF)
                         .build();
                 leaveRequestRepository.save(lr);
+                // 시드는 Kafka consumer 우회라 MemberBalance.use() 직접 호출 - 잔여 화면 반영
+                memberBalanceRepository
+                        .findByCompanyIdAndMemberIdAndBalanceTypeAndDelYn(
+                                companyId, m.getMemberId(), BalanceType.ANNUAL, "N")
+                        .ifPresent(b -> {
+                            b.use(1.0);
+                            memberBalanceRepository.save(b);
+                        });
                 totalCreated++;
+                perMember++;
             }
         }
-        log.info("[DEMO-SEED] 추가 LeaveRequest 시드 완료 companyId={} 신규 {}건", companyId, totalCreated);
+        log.info("[DEMO-SEED] 올해 LeaveRequest 시드 완료 companyId={} 신규 {}건 (직원당 최대 {}건)",
+                companyId, totalCreated, maxPerMember);
     }
 
     /**
@@ -790,9 +809,11 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
             return;
         }
 
-        LocalDate firstSentOn = LocalDate.of(2025, 7, 4);  // 만료 180일 전
-        LocalDate secondSentOn = LocalDate.of(2025, 11, 1); // 만료 60일 전
-        LocalDate expiry = LocalDate.of(2025, 12, 31);
+        // 작년 만료 시나리오 - today 기반 동적 계산 (하드코딩 제거, 시간 흘러도 항상 작년)
+        int lastYear = LocalDate.now().getYear() - 1;
+        LocalDate firstSentOn = LocalDate.of(lastYear, 7, 4);   // 만료 180일 전
+        LocalDate secondSentOn = LocalDate.of(lastYear, 11, 1); // 만료 60일 전
+        LocalDate expiry = LocalDate.of(lastYear, 12, 31);
 
         for (int i = 0; i < targets.size(); i++) {
             MemberResDto m = targets.get(i);
@@ -821,19 +842,20 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                     .build();
 
             if (i < 2) {
-                // 시나리오 A: 회신 + 본인 사용
-                firstLog.markViewed();
-                firstLog.acknowledge("[\"2025-12-22\",\"2025-12-23\",\"2025-12-26\",\"2025-12-29\",\"2025-12-30\"]");
-                leavePromotionLogRepository.save(firstLog);
-
-                // 회신한 5일 분의 LeaveRequest 5건 (각 1일짜리)
+                // 시나리오 A: 회신 + 본인 사용 - 작년 12월 마지막 평일 5일 사용
                 LocalDate[] usedDays = {
-                        LocalDate.of(2025, 12, 22),
-                        LocalDate.of(2025, 12, 23),
-                        LocalDate.of(2025, 12, 26),
-                        LocalDate.of(2025, 12, 29),
-                        LocalDate.of(2025, 12, 30)
+                        LocalDate.of(lastYear, 12, 22),
+                        LocalDate.of(lastYear, 12, 23),
+                        LocalDate.of(lastYear, 12, 26),
+                        LocalDate.of(lastYear, 12, 29),
+                        LocalDate.of(lastYear, 12, 30)
                 };
+                String usedJson = String.format(
+                        "[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]",
+                        usedDays[0], usedDays[1], usedDays[2], usedDays[3], usedDays[4]);
+                firstLog.markViewed();
+                firstLog.acknowledge(usedJson);
+                leavePromotionLogRepository.save(firstLog);
                 for (LocalDate d : usedDays) {
                     boolean exists = !leaveRequestRepository
                             .findAllByMemberIdAndStartDateAndDelYn(m.getMemberId(), d, "N")
@@ -849,9 +871,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                             .reason("촉진 1차 회신 후 자율 사용 (시드)")
                             .approvalStatus(LeaveApprovalStatus.APPROVED)
                             .requestedBy(m.getMemberId())
-                            .requestedAt(firstSentOn.atTime(11, 0))
+                            .requestedAt(kstAt(firstSentOn, 11, 0))
                             .decidedBy(SYSTEM_ACTOR)
-                            .decidedAt(firstSentOn.plusDays(2).atTime(15, 0))
+                            .decidedAt(kstAt(firstSentOn.plusDays(2), 15, 0))
                             .initiator(LeaveInitiator.SELF)
                             .build();
                     leaveRequestRepository.save(lr);
@@ -868,18 +890,18 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .sentOn(secondSentOn)
                         .status(PromotionLogStatus.SENT)
                         .build();
-                String designated = "[\"2025-12-22\",\"2025-12-23\",\"2025-12-26\",\"2025-12-29\",\"2025-12-30\"]";
+                LocalDate[] forcedDays = {
+                        LocalDate.of(lastYear, 12, 22),
+                        LocalDate.of(lastYear, 12, 23),
+                        LocalDate.of(lastYear, 12, 26),
+                        LocalDate.of(lastYear, 12, 29),
+                        LocalDate.of(lastYear, 12, 30)
+                };
+                String designated = String.format(
+                        "[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]",
+                        forcedDays[0], forcedDays[1], forcedDays[2], forcedDays[3], forcedDays[4]);
                 secondLog.designate(designated, "1차 회신 무응답 - 회사 강제 지정");
                 leavePromotionLogRepository.save(secondLog);
-
-                // 강제 지정 LeaveRequest 5건 (ADMIN_DESIGNATION)
-                LocalDate[] forcedDays = {
-                        LocalDate.of(2025, 12, 22),
-                        LocalDate.of(2025, 12, 23),
-                        LocalDate.of(2025, 12, 26),
-                        LocalDate.of(2025, 12, 29),
-                        LocalDate.of(2025, 12, 30)
-                };
                 for (LocalDate d : forcedDays) {
                     boolean exists = !leaveRequestRepository
                             .findAllByMemberIdAndStartDateAndDelYn(m.getMemberId(), d, "N")
@@ -1028,9 +1050,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .approvalStatus(AllowanceApprovalStatus.APPROVED)
                         .reason("식대 추가 결재 (시드)")
                         .requestedBy(m.getMemberId())
-                        .requestedAt(effFrom.minusDays(7).atTime(10, 0))
+                        .requestedAt(kstAt(effFrom.minusDays(7), 10, 0))
                         .decidedBy(SYSTEM_ACTOR)
-                        .decidedAt(effFrom.minusDays(3).atTime(15, 0))
+                        .decidedAt(kstAt(effFrom.minusDays(3), 15, 0))
                         .build();
                 memberAllowanceRepository.save(ma);
                 created++;
@@ -1058,9 +1080,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .approvalStatus(AllowanceApprovalStatus.APPROVED)
                         .reason("자가운전보조금 추가 후 해제 결재 (시드)")
                         .requestedBy(m.getMemberId())
-                        .requestedAt(effFrom.minusDays(7).atTime(10, 0))
+                        .requestedAt(kstAt(effFrom.minusDays(7), 10, 0))
                         .decidedBy(SYSTEM_ACTOR)
-                        .decidedAt(effFrom.minusDays(3).atTime(15, 0))
+                        .decidedAt(kstAt(effFrom.minusDays(3), 15, 0))
                         .build();
                 memberAllowanceRepository.save(ma);
                 created++;
@@ -1071,34 +1093,20 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
     }
 
     /**
-     * Historical 연차 부여 - 직원 입사년도부터 올해까지 매년 ANNUAL balance 시드
-     * - 회계연도 회사: 매년 1/1 LeaveGrantWorker 호출
-     * - 입사일 회사: 직원별 입사 기념일에 LeaveGrantWorker 호출
-     * LeaveGrantWorker 자체 멱등 (이미 부여된 직원 skip)
+     * 현재 연도 연차 부여 - 회사당 1회만 호출
+     * runForCompany 내부에서 grantHireDate/grantFiscal/grantMonthly 모두 실행하므로
+     * 회사 정책(FISCAL/HIRE_DATE)과 무관하게 1회 호출로 충분.
+     * 직원별로 반복 호출하면 같은 직원에게 ANNUAL balance 중복 부여되어
+     * findAnnualBalance(Optional)에서 NonUniqueResult 터짐 -> 직원 루프 제거.
      */
     private void seedHistoricalLeaveGrants(UUID companyId) {
-        ApiResponse<List<MemberResDto>> apiRes;
-        try {
-            apiRes = memberFeignClient.getMembersByCompany(companyId);
-        } catch (Exception e) {
-            log.warn("[DEMO-SEED] historical 부여 - 직원 조회 실패 - {}", e.getMessage());
-            return;
-        }
-        List<MemberResDto> members = apiRes != null ? apiRes.getData() : null;
-        if (members == null || members.isEmpty()) return;
-
         LocalDate today = LocalDate.now();
-        // 현재 연도 1/1만 호출 - LeaveGrantWorker 가 근속 연수 기반으로 정확한 일수 부여
-        // (12년차 → 19일, 5년차 → 17일 등). 매년 누적 부여하면 만료 처리 안 돼 잔고 누적 문제 발생.
-        LocalDate base = LocalDate.of(today.getYear(), 1, 1);
-        if (!base.isAfter(today)) {
-            try {
-                leaveGrantWorker.runForCompany(companyId, base);
-            } catch (Exception e) {
-                log.warn("[DEMO-SEED] LeaveGrantWorker(1/1) 실패 base={} - {}", base, e.getMessage());
-            }
+        try {
+            leaveGrantWorker.runForCompany(companyId, LocalDate.of(today.getYear(), 1, 1));
+            log.info("[DEMO-SEED] 연차 부여 완료 companyId={}", companyId);
+        } catch (Exception e) {
+            log.warn("[DEMO-SEED] LeaveGrantWorker 실패 companyId={} - {}", companyId, e.getMessage());
         }
-        log.info("[DEMO-SEED] 연차 부여 완료 companyId={} (현재 연도만)", companyId);
     }
 
     /**
@@ -1123,7 +1131,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                 .lateMinutes(0)
                 .earlyLeaveMinutes(0)
                 .absentDays(0)
-                .closedAt(ym.atEndOfMonth().atTime(2, 0))
+                .closedAt(kstAt(ym.atEndOfMonth(), 2, 0))
                 .closedBy(SYSTEM_ACTOR)
                 .isLocked(false)
                 .build();
@@ -1497,6 +1505,12 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
         return created;
     }
 
+    /** 시드 KST 시각을 UTC LocalDateTime 으로 변환 - 프론트 dayjs.utc().tz('Asia/Seoul') 표시와 짝 맞추기 */
+    private static LocalDateTime kstAt(LocalDate d, int h, int m) {
+        return d.atTime(h, m).atZone(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
     private void seedDailyAttendance(UUID companyId) {
         ApiResponse<List<MemberResDto>> apiRes;
         try {
@@ -1560,12 +1574,10 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
 
             int memberCreated = 0;
             int memberSkipped = 0;
-            // 근태 시드 시작일 cap - max(joinDate, today-12개월), 최근 12개월치 일별 근태
-            LocalDate seedStart = member.getJoinDate().isBefore(LocalDate.now().minusMonths(12))
-                    ? LocalDate.now().minusMonths(12)
+            // 근태 시드 시작일 cap - max(joinDate, today-36개월), 3년치 일별 근태
+            LocalDate seedStart = member.getJoinDate().isBefore(LocalDate.now().minusMonths(36))
+                    ? LocalDate.now().minusMonths(36)
                     : member.getJoinDate();
-            // AttendanceLog 시드 cutoff - 최근 3개월만 (근태정정 시연용)
-            LocalDate logCutoff = LocalDate.now().minusMonths(3);
             for (LocalDate d = seedStart; !d.isAfter(yesterday); d = d.plusDays(1)) {
                 int dow = d.getDayOfWeek().getValue(); // 1=월 ~ 7=일
                 if (dow == 6 || dow == 7) continue; // 토/일 skip
@@ -1597,9 +1609,9 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                                 .reason(reason)
                                 .approvalStatus(LeaveApprovalStatus.APPROVED)
                                 .requestedBy(member.getMemberId())
-                                .requestedAt(d.minusDays(7).atTime(10, 0))
+                                .requestedAt(kstAt(d.minusDays(7), 10, 0))
                                 .decidedBy(SYSTEM_ACTOR)
-                                .decidedAt(d.minusDays(5).atTime(15, 0))
+                                .decidedAt(kstAt(d.minusDays(5), 15, 0))
                                 .initiator(LeaveInitiator.SELF)
                                 .build());
                     }
@@ -1674,12 +1686,12 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                     // 한국 표준: 오전 반차는 09~13 출근/퇴근, 오후 반차는 14~18 출근/퇴근
                     if (monthVal % 2 == 0) {
                         // 오후 반차 - 오전 09:00~13:00 근무 후 퇴근
-                        clockIn = d.atTime(9, 0);
-                        clockOut = d.atTime(13, 0);
+                        clockIn = kstAt(d, 9, 0);
+                        clockOut = kstAt(d, 13, 0);
                     } else {
                         // 오전 반차 - 오후 14:00~18:00 근무 (오전 휴식)
-                        clockIn = d.atTime(14, 0);
-                        clockOut = d.atTime(18, 0);
+                        clockIn = kstAt(d, 14, 0);
+                        clockOut = kstAt(d, 18, 0);
                     }
                     worked = 4 * 60;
                     overtime = 0;
@@ -1688,8 +1700,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                     // 정상 또는 출장/외근 - 출퇴근 기록 있음 (출장 시 기본 스케줄 사용)
                     int actualInH = isTardy ? 9 : clockInH;
                     int actualInM = isTardy ? 30 : clockInM;
-                    clockIn = d.atTime(actualInH, actualInM);
-                    clockOut = d.atTime(outH, outM);
+                    clockIn = kstAt(d, actualInH, actualInM);
+                    clockOut = kstAt(d, outH, outM);
                     int totalMinutes = (int) java.time.Duration.between(clockIn, clockOut).toMinutes();
                     int breakMinutes = 60; // 점심 1시간
                     worked = Math.max(0, totalMinutes - breakMinutes);
@@ -1712,9 +1724,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .build();
                 DailyAttendance savedDaily = dailyAttendanceRepository.save(daily);
 
-                // 출/퇴근 로그 - 최근 3개월만 시드 (시드 시간 단축, 정정 시연 보존)
-                // 메인 근태 화면은 DailyAttendance.firstClockIn/lastClockOut 에서 표시되므로 로그 누락 OK
-                if (clockIn != null && clockOut != null && !d.isBefore(logCutoff)) {
+                // 출/퇴근 로그 - LEAVE (clockIn null) 가 아닌 경우에만 저장
+                if (clockIn != null && clockOut != null) {
                     AttendanceLog logIn = AttendanceLog.builder()
                             .dailyAttendance(savedDaily)
                             .memberId(member.getMemberId())
@@ -1752,8 +1763,8 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                             String reason = specialStatus == AttendanceStatus.LEAVE
                                     ? "연차 사용 (시드)"
                                     : (isAm ? "오전 반차 사용 (시드)" : "오후 반차 사용 (시드)");
-                            LocalDateTime requestedAt = d.minusDays(7).atTime(10, 0);
-                            LocalDateTime decidedAt = d.minusDays(5).atTime(15, 0);
+                            LocalDateTime requestedAt = kstAt(d.minusDays(7), 10, 0);
+                            LocalDateTime decidedAt = kstAt(d.minusDays(5), 15, 0);
                             LeaveRequest lr = LeaveRequest.builder()
                                     .memberId(member.getMemberId())
                                     .companyId(companyId)
@@ -1818,12 +1829,13 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
             log.info("[DEMO-SEED] LeavePolicy 이미 있음 - skip companyId={}", companyId);
             return;
         }
+        // 데모 단순화 - 전 직원 15일로 통일 (근속연수 가산 없음)
         LeavePolicy.LeavePolicyBuilder builder = LeavePolicy.builder()
                 .companyId(companyId)
                 .defaultAnnualDays(15.0)
-                .extraDaysPerInterval(1.0)
+                .extraDaysPerInterval(0.0)
                 .extraIntervalYears(2)
-                .maxAnnualDays(25.0)
+                .maxAnnualDays(15.0)
                 .accrualBase(accrualBase);
         if (usePromotion) {
             // 촉진제도 ON + 이월 5일 + 미사용 미지급
@@ -1998,7 +2010,7 @@ public class DemoSalarySeedRunner implements ApplicationRunner {
                         .breakEnd(picked.getBreakEnd())
                         .approvalStatus(ScheduleApprovalStatus.AUTO)
                         .requestedBy(SYSTEM_ACTOR)
-                        .requestedAt(ym.atDay(1).atTime(9, 0))
+                        .requestedAt(kstAt(ym.atDay(1), 9, 0))
                         .build());
                 totalCreated++;
             }

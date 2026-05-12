@@ -152,6 +152,7 @@ class AutoCreateTestData implements ApplicationRunner {
 
             List<Role> roles = roleRepository
                     .findByCompany_CompanyIdAndDelYnOrderByDisplayOrder(company.getCompanyId(), "NO");
+            // 인사 팀장 역할 - MemberService.createDefaultRoles 의 "인사 팀장"과 일치
             Role hrManagerRole = roles.stream().filter(r -> r.getName().equals("인사 팀장")).findFirst().orElseThrow();
             Role hrMemberRole = roles.stream().filter(r -> r.getName().equals("인사 팀원")).findFirst().orElseThrow();
             Role teamLeaderRole = roles.stream().filter(r -> r.getName().equals("팀장")).findFirst().orElseThrow();

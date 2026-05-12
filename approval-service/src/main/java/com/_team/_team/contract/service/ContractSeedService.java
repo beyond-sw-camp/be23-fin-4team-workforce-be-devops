@@ -42,23 +42,18 @@ public class ContractSeedService {
         }
         ContractTemplate template = templates.get(0);
 
-        boolean exists = contractRepository
-                .findByEmployeeMemberIdAndDelYnOrderByCreatedAtDesc(memberId, "N")
-                .stream()
-                .anyMatch(c -> c.getContractType() == ContractType.SALARY
-                        && c.getContractNumber() != null
-                        && c.getContractNumber().contains("-" + year + "-"));
-        if (exists) return;
+        String sabunPart = (employeeSabun == null || employeeSabun.isBlank())
+                ? memberId.toString().substring(0, 8)
+                : employeeSabun;
+        String contractNumber = String.format("연봉-%s-%s", effectiveFrom, sabunPart);
+
+        // UNIQUE 제약은 delYn 무관이라 existsByContractNumber 직접 체크 (soft-delete된 행도 키 점유)
+        if (contractRepository.existsByContractNumber(contractNumber)) return;
 
         long annualSalary = baseSalary * 12L;
         String contentJson = String.format(
                 "{\"year\":%d,\"annualSalary\":%d,\"monthlyBase\":%d,\"effectiveFrom\":\"%s\"}",
                 year, annualSalary, baseSalary, effectiveFrom);
-
-        String sabunPart = (employeeSabun == null || employeeSabun.isBlank())
-                ? memberId.toString().substring(0, 8)
-                : employeeSabun;
-        String contractNumber = String.format("연봉-%s-%s", effectiveFrom, sabunPart);
 
         Contract contract = Contract.builder()
                 .companyId(companyId)

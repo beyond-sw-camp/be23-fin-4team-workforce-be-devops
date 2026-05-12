@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.util.TimeZone;
+
 /**
  * [SSE] 알림 파이프라인이 정상 동작하려면 다음이 필요:
  *   - 이벤트 리스너는 {@code common.NotificationEventListener} 가 담당
@@ -23,6 +25,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class GoalApplication {
 
 	public static void main(String[] args) {
+		// JVM TZ UTC 고정 - 모든 LocalDateTime.now() 가 UTC 시각 반환, 프론트 dayjs.utc().tz('Asia/Seoul') 와 짝
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 		SpringApplication.run(GoalApplication.class, args);
 	}
 

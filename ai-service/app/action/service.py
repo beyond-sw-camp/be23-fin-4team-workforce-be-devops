@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from typing import Optional
+from datetime import date, datetime, timedelta, timezone
 
 from app.config import settings
 from app.action import approval_client, form_builder, state
@@ -13,9 +14,11 @@ from app.action.schema import ActionRequest, ActionResponse, ActionState, Action
 from app.core.openai import client as openai_client
 from app.core.pinecone import search_vectors
 from app.core.openai import get_embedding
-from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
+
+# KST 타임존 (컨테이너가 UTC라 명시 필요)
+KST = timezone(timedelta(hours=9))
 
 
 # ============================================
@@ -139,8 +142,7 @@ async def _handle_user_action(
 # 양식 매칭 (RAG + 키워드 re-ranking)
 # ============================================
 
-# 결재 양식명 키워드 그룹 (같은 그룹은 동의어 취급, 다른 그룹과는 구분)
-# "휴가"와 "휴직"이 임베딩에서 유사하게 나오는 문제를 보정하기 위함.
+# 결재 양식명 키워드 그룹 — 같은 그룹은 동의어, 다른 그룹은 구분
 FORM_KEYWORD_GROUPS = [
     ["휴가", "연차", "반차", "월차", "유급휴가"],
     ["휴직"],
@@ -155,18 +157,7 @@ FORM_KEYWORD_GROUPS = [
 
 
 def _rerank_by_keyword(matches, question: str):
-    """
-    Pinecone 벡터 유사도 결과를 키워드 매칭으로 재정렬.
-
-    규칙:
-    - 양식명 전체가 질문에 포함되면 +0.5 (강한 boost)
-    - 양식명 키워드와 질문 키워드가 같은 그룹이면 +0.2
-    - 양식명에는 다른 그룹의 키워드가 있는데 질문엔 없으면 -0.15 (penalty)
-
-    예: "다음주에 휴가 갈 건데 신청해줘"
-      - 휴직 신청서: 휴직 키워드 양식엔 있고 질문엔 없음 → -0.15
-      - 휴가신청서: 휴가 그룹 모두 매칭 → +0.2
-    """
+    """벡터 유사도 결과를 키워드 매칭으로 재정렬"""
     question_norm = question.replace(' ', '').lower()
 
     for m in matches:
@@ -174,7 +165,7 @@ def _rerank_by_keyword(matches, question: str):
         title_norm = title.replace(' ', '')
         original_score = m.score
 
-        # 1. 양식명 전체가 질문에 포함되면 강한 boost (확정 매칭)
+        # 양식명 전체가 질문에 포함되면 강한 boost
         if title_norm and title_norm in question_norm:
             m.score += 0.5
             logger.info(
@@ -183,7 +174,6 @@ def _rerank_by_keyword(matches, question: str):
             )
             continue
 
-        # 2. 키워드 그룹 매칭 + 다른 그룹 penalty
         matched_boost = 0.0
         mismatch_penalty = 0.0
 
@@ -192,10 +182,8 @@ def _rerank_by_keyword(matches, question: str):
             in_title = any(kw in title for kw in group)
 
             if in_question and in_title:
-                # 양쪽 다 있음 → 같은 양식
                 matched_boost = max(matched_boost, 0.2)
             elif in_title and not in_question:
-                # 양식명에는 있는데 질문엔 없음 → 다른 양식일 가능성
                 mismatch_penalty = max(mismatch_penalty, 0.15)
 
         if matched_boost or mismatch_penalty:
@@ -225,7 +213,7 @@ async def _match_form(question: str, company_id: str) -> Optional[dict]:
     matches = search_vectors(
         query_vector,
         company_id,
-        top_k=5,  # re-rank 위해 5개로 확장
+        top_k=5,
         min_score=0.3,
         category="결재",
         include_platform=False
@@ -235,7 +223,6 @@ async def _match_form(question: str, company_id: str) -> Optional[dict]:
         logger.warning(f"[action] 양식 매칭 실패")
         return None
 
-    # 키워드 기반 re-rank
     matches = _rerank_by_keyword(matches, question)
 
     top_match = matches[0]
@@ -280,16 +267,37 @@ async def _extract_slots(
     if not tool:
         return {}
 
-    today = date.today()
+    # KST 기준 날짜 계산
+    today = datetime.now(KST).date()
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
 
+    # 이번주/다음주 요일별 날짜 (월=0 ~ 일=6)
+    this_monday = today - timedelta(days=today.weekday())
+    next_monday = this_monday + timedelta(days=7)
+
+    weekday_names = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+    this_week_lines = "\n".join([
+        f"  - 이번주 {weekday_names[i]}: {(this_monday + timedelta(days=i)).isoformat()}"
+        for i in range(7)
+    ])
+    next_week_lines = "\n".join([
+        f"  - 다음주 {weekday_names[i]}: {(next_monday + timedelta(days=i)).isoformat()}"
+        for i in range(7)
+    ])
+
     system_prompt = f"""당신은 HR 결재 양식 작성 어시스턴트입니다.
 
-[현재 날짜 정보]
+[현재 날짜 정보 - KST 기준]
 - 오늘: {today.isoformat()} ({_get_weekday_korean(today)})
 - 내일: {tomorrow.isoformat()}
 - 모레: {day_after.isoformat()}
+
+[이번 주 요일별 날짜]
+{this_week_lines}
+
+[다음 주 요일별 날짜]
+{next_week_lines}
 
 [작성 중인 양식]
 {document_name}
@@ -310,11 +318,11 @@ async def _extract_slots(
 
 [일반 규칙]
 - 추출 가능한 정보가 없으면 함수를 호출하지 마세요.
-- 날짜는 반드시 위의 [현재 날짜 정보]를 기준으로 YYYY-MM-DD로 변환하세요.
-  - "오늘" → {today.isoformat()}
+- 날짜는 반드시 위의 [이번 주 / 다음 주 요일별 날짜] 표를 그대로 사용하세요.
   - "내일" → {tomorrow.isoformat()}
   - "모레" → {day_after.isoformat()}
-  - "다음주 월요일", "이번주 금요일" 등도 [현재 날짜 정보] 기준으로 계산
+  - "다음주 월요일", "이번주 금요일" 등은 위 표에서 그대로 복사하세요. 계산하지 마세요.
+  - "다음주부터 N일간" 같은 표현은 시작일을 명시적 요일/날짜로 추론할 수 있을 때만 사용.
 - 시간은 HH:mm 형식으로 변환하세요.
 - 이미 입력된 정보는 유지하고, 새 정보만 추출하세요.
 
@@ -325,11 +333,11 @@ async def _extract_slots(
 
 [잘못된 추출 예시 - 절대 하지 말 것]
 입력: "사직서 작성해줘"
-잘못된 추출: {{ "title": "사직서", "resignDate": "2026-05-02", "resignReason": "기타" }}
+잘못된 추출: {{ "title": "사직서", "resignDate": "...", "resignReason": "기타" }}
 올바른 추출: {{ "title": "사직서" }} 또는 함수 호출 안 함
 
 입력: "연차 신청"
-잘못된 추출: {{ "startDate": "2026-05-01", "endDate": "2026-05-01", "vacationType": "연차" }}
+잘못된 추출: {{ "startDate": "...", "endDate": "...", "vacationType": "연차" }}
 올바른 추출: {{ "title": "연차 신청서" }} 또는 함수 호출 안 함
 """
 
@@ -420,7 +428,6 @@ def _ask_response(current_state: ActionState, missing: list) -> ActionResponse:
         options_str = ", ".join(first_missing["options"])
         message += f"\n\n({label} 옵션: {options_str})"
 
-    # 선택 항목 안내
     optional_labels = _get_optional_field_labels(
         current_state.form_schema, current_state.slots
     )
@@ -475,7 +482,6 @@ def _redirect_response(current_state: ActionState) -> ActionResponse:
 
     message = "결재 작성 화면으로 이동합니다."
 
-    # 세션 정리
     state.clear_state(current_state.session_id)
 
     return ActionResponse(
@@ -512,15 +518,12 @@ def _get_optional_field_labels(form_schema_str: str, slots: dict) -> list:
 
     optional_labels = []
     for field in visible_fields:
-        # 조건부 필드는 조건 만족 시에만 검사
         if not form_builder.is_field_visible(field, slots):
             continue
 
-        # 필수 필드는 제외
         if field.get("required"):
             continue
 
-        # 이미 입력된 값 있으면 제외
         name = field.get("name")
         value = slots.get(name)
         if value:

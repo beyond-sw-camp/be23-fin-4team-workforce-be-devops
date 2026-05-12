@@ -1,12 +1,15 @@
 from app.core.openai import get_embedding, expand_query, detect_category
 from app.core.pinecone import search_vectors
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
 
 NO_CONTEXT_MARKER = "__NO_RELEVANT_DOCUMENT__"
+
+# KST 타임존 (컨테이너가 UTC라 명시 필요)
+KST = timezone(timedelta(hours=9))
 
 # ============================================================
 # 액션 가이드 라우팅 테이블
@@ -580,9 +583,10 @@ def apply_layer_priority(matches, final_top_k=5):
 
 
 def _build_date_info() -> str:
-    today = date.today()
+    """현재 KST 날짜 정보 헤더 생성 - LLM이 시점 표현 정확히 해석하도록"""
+    today = datetime.now(KST).date()
     weekdays = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
-    return f"""[현재 날짜 정보]
+    return f"""[현재 날짜 정보 - KST 기준]
 - 오늘: {today.isoformat()} ({weekdays[today.weekday()]})
 - 이번달: {today.year}년 {today.month}월
 - 올해: {today.year}년

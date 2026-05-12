@@ -136,8 +136,86 @@ async def _handle_user_action(
 
 
 # ============================================
-# 양식 매칭 (RAG)
+# 양식 매칭 (RAG + 키워드 re-ranking)
 # ============================================
+
+# 결재 양식명 키워드 그룹 (같은 그룹은 동의어 취급, 다른 그룹과는 구분)
+# "휴가"와 "휴직"이 임베딩에서 유사하게 나오는 문제를 보정하기 위함.
+FORM_KEYWORD_GROUPS = [
+    ["휴가", "연차", "반차", "월차", "유급휴가"],
+    ["휴직"],
+    ["사직", "퇴사", "퇴직"],
+    ["출장", "외근"],
+    ["공문"],
+    ["업무보고", "보고서"],
+    ["근로계약", "연봉계약", "계약서"],
+    ["수당"],
+    ["근무시간", "출퇴근시간"],
+]
+
+
+def _rerank_by_keyword(matches, question: str):
+    """
+    Pinecone 벡터 유사도 결과를 키워드 매칭으로 재정렬.
+
+    규칙:
+    - 양식명 전체가 질문에 포함되면 +0.5 (강한 boost)
+    - 양식명 키워드와 질문 키워드가 같은 그룹이면 +0.2
+    - 양식명에는 다른 그룹의 키워드가 있는데 질문엔 없으면 -0.15 (penalty)
+
+    예: "다음주에 휴가 갈 건데 신청해줘"
+      - 휴직 신청서: 휴직 키워드 양식엔 있고 질문엔 없음 → -0.15
+      - 휴가신청서: 휴가 그룹 모두 매칭 → +0.2
+    """
+    question_norm = question.replace(' ', '').lower()
+
+    for m in matches:
+        title = (m.metadata.get('subcategory') or '').lower()
+        title_norm = title.replace(' ', '')
+        original_score = m.score
+
+        # 1. 양식명 전체가 질문에 포함되면 강한 boost (확정 매칭)
+        if title_norm and title_norm in question_norm:
+            m.score += 0.5
+            logger.info(
+                f"[rerank] '{title}' 양식명 직접 매칭 +0.5 "
+                f"({original_score:.3f} → {m.score:.3f})"
+            )
+            continue
+
+        # 2. 키워드 그룹 매칭 + 다른 그룹 penalty
+        matched_boost = 0.0
+        mismatch_penalty = 0.0
+
+        for group in FORM_KEYWORD_GROUPS:
+            in_question = any(kw in question for kw in group)
+            in_title = any(kw in title for kw in group)
+
+            if in_question and in_title:
+                # 양쪽 다 있음 → 같은 양식
+                matched_boost = max(matched_boost, 0.2)
+            elif in_title and not in_question:
+                # 양식명에는 있는데 질문엔 없음 → 다른 양식일 가능성
+                mismatch_penalty = max(mismatch_penalty, 0.15)
+
+        if matched_boost or mismatch_penalty:
+            m.score = m.score + matched_boost - mismatch_penalty
+            logger.info(
+                f"[rerank] '{title}' boost +{matched_boost:.2f} "
+                f"penalty -{mismatch_penalty:.2f} "
+                f"({original_score:.3f} → {m.score:.3f})"
+            )
+
+    matches.sort(key=lambda m: m.score, reverse=True)
+
+    logger.info(f"[rerank] 재정렬 결과:")
+    for i, m in enumerate(matches):
+        logger.info(
+            f"  #{i+1} score={m.score:.3f} [{m.metadata.get('subcategory', '?')}]"
+        )
+
+    return matches
+
 
 async def _match_form(question: str, company_id: str) -> Optional[dict]:
     """RAG로 양식 매칭 후 approval-service에서 최신 정보 조회"""
@@ -147,7 +225,7 @@ async def _match_form(question: str, company_id: str) -> Optional[dict]:
     matches = search_vectors(
         query_vector,
         company_id,
-        top_k=3,
+        top_k=5,  # re-rank 위해 5개로 확장
         min_score=0.3,
         category="결재",
         include_platform=False
@@ -156,6 +234,9 @@ async def _match_form(question: str, company_id: str) -> Optional[dict]:
     if not matches:
         logger.warning(f"[action] 양식 매칭 실패")
         return None
+
+    # 키워드 기반 re-rank
+    matches = _rerank_by_keyword(matches, question)
 
     top_match = matches[0]
     metadata = top_match.metadata
@@ -171,7 +252,7 @@ async def _match_form(question: str, company_id: str) -> Optional[dict]:
 
     document_id = match.group(1)
     logger.info(
-        f"[action] 매칭됨: {metadata.get('subcategory')} "
+        f"[action] 최종 매칭: {metadata.get('subcategory')} "
         f"(score={top_match.score:.3f}, document_id={document_id})"
     )
 

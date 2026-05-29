@@ -449,12 +449,12 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 
 | 화면 | 경로 | 증적 시나리오 | 증적 |
 |------|------|---------------|------|
-| 랜딩 | `/` | 서비스 진입, 로그인/회사 온보딩 이동 | 준비 중 |
+| 랜딩 | `/` | 서비스 진입, 로그인/회사 온보딩 이동 | <video src="https://github.com/user-attachments/assets/99c7303c-8fd4-44d8-8dda-737053797f7c"></video> |
 | 로그인 | `/login` | 일반 사용자 로그인, SaaS 운영자 로그인 분기 | <video src="https://github.com/user-attachments/assets/b255560f-0305-4697-9d3b-95ba7c2f5e63"></video> |
 | 비밀번호 찾기 | `/find-password` | 이메일 입력 후 재설정 요청 | <video src="https://github.com/user-attachments/assets/37032ce2-d279-4a4b-8325-a83a181d3302"></video> |
-| 비밀번호 재설정 | `/reset-password` | 재설정 토큰 기반 새 비밀번호 등록 | <video src="https://github.com/user-attachments/assets/cbc55465-c675-4818-9f4e-b744443fb5b9"></video>  |
-| 비밀번호 변경 | `/change-password` | 최초 로그인/강제 변경 플로우 |   |
-| 이메일 인증 | `/verify-email` | 이메일 인증 완료/실패 화면 | 비밀번호 찾기시 인증 |
+| 비밀번호 재설정 | `/reset-password` | 재설정 토큰 기반 새 비밀번호 등록 | <video src="https://github.com/user-attachments/assets/cbc55465-c675-4818-9f4e-b744443fb5b9"></video> |
+| 비밀번호 변경 | `/change-password` | 최초 로그인/강제 변경 플로우 | <video src="https://github.com/user-attachments/assets/7d4eec44-5a7b-46a4-81a8-634992262f86"></video> |
+| 이메일 인증 | `/verify-email` | 이메일 인증 완료/실패 화면 | <video src="https://github.com/user-attachments/assets/92aa20f3-804e-402d-acbb-b27360c0e8be"></video> <video src="https://github.com/user-attachments/assets/a1f92048-52ed-4e22-89da-81105f84837f"></video> |
 | 회사 온보딩 | `/company/onboarding` | 회사 생성, 기본 정보 입력, 초기 가입 완료 | <video src="https://github.com/user-attachments/assets/3774dbac-220b-4f74-9307-cdd5735a9d2a"></video> |
 | 접근 금지 | `/403` | 권한 없는 사용자 접근 차단 | 준비 중 |
 | Not Found | `/404` | 존재하지 않는 URL 진입 | 준비 중 |
@@ -462,23 +462,21 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 </details>
 
 
-
-
 <details>
 <summary><strong>공통 앱 셸 · 대시보드/검색/알림/AI</strong></summary>
 
 | 화면/기능 | 경로 | 증적 시나리오 | 증적 |
 |-----------|------|---------------|------|
-| 대시보드 | `/app/dashboard` | 로그인 후 메인 위젯, 요약 지표 확인 |  <video src="https://github.com/user-attachments/assets/862567e2-c7cc-4ebc-b2b0-5e21d4b598af"></video> |
+| 대시보드 | `/app/dashboard` | 로그인 후 메인 위젯, 요약 지표 확인 | <video src="https://github.com/user-attachments/assets/862567e2-c7cc-4ebc-b2b0-5e21d4b598af"></video> |
 | HR 인사이트 | `/app/insights` | 인사 지표/분석 화면 조회(UI 시연용 더미) | <video src="https://github.com/user-attachments/assets/e7442a7d-02de-4d7f-b9b0-df6822447849"></video> |
 | 캘린더 | `/app/calendar` | 회사 일정, 개인 일정, 결재 승인 일정 확인 | <video src="https://github.com/user-attachments/assets/a06332bc-49a3-4c32-b1d3-7426459c78c9"></video> |
 | 알림 목록 | `/app/notifications` | 알림 목록 조회, 읽음 처리, 관련 화면 이동 | <video src="https://github.com/user-attachments/assets/6b0f44cf-a862-4575-9eda-3af304b0f00c"></video> |
-| 헤더 알림 팝오버 | 공통 헤더 | 실시간 알림 수신, 알림 클릭 라우팅 | 준비 중 |
+| 헤더 알림 팝오버 | 공통 헤더 | 실시간 알림 수신, 알림 클릭 라우팅 | <video src="https://github.com/user-attachments/assets/e56c0be8-30ad-4538-bbe7-62caa4526a56"></video> |
 | 통합 검색 | 공통 헤더 | 메뉴/구성원/문서 검색 후 상세 이동 | <video src="https://github.com/user-attachments/assets/e5e43e84-8083-4fc3-892e-976c5b61ee27"></video> |
 | 조직도 모달 | 공통 앱 셸 | 조직 트리 조회, 구성원 상세 패널 확인 | <video src="https://github.com/user-attachments/assets/7ab593ce-5943-444a-af6f-76f45705e02b"></video> |
 | 멤버 채팅 | 공통 헤더/모달 | 1:1/그룹 채팅, 파일/이미지 메시지, 읽음 처리 | <video src="https://github.com/user-attachments/assets/471e4cf1-bad2-43c3-92a4-37fb7809f9cd"></video> |
 | AI 챗봇 | 우측 하단 FAB | 정책 질문, 실시간 조회 질문, 답변 출처 확인 | <video src=""></video> |
-| AI 회의록 | 공통 헤더 모달 | 녹음 파일 업로드, 회의록 생성, 결과 확인 | <video src=""></video> |
+| AI 회의록 | 공통 헤더 모달 | 녹음 파일 업로드, 회의록 생성, 결과 확인 | <video src="https://github.com/user-attachments/assets/359a41a0-8d5a-428e-aa60-c0fb91fbfc12"></video> |
 | 마이페이지 | `/app/me` | 내 정보 조회 | <video src="https://github.com/user-attachments/assets/f48e937f-bde0-46f2-8a21-2525ea8fd51c"></video> |
 
 </details>
@@ -489,9 +487,9 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 
 | 화면 | 경로 | 증적 시나리오 | 증적 |
 |------|------|---------------|------|
-| 운영자 대시보드 | `/saas/dashboard` | SaaS 운영자 로그인 후 콘솔 진입 | <video src="https://github.com/user-attachments/assets/311f1fa5-523e-4b0c-9687-3bf19c37c397"></video>|
-| 자동 작업 스케줄 | `/saas/schedules` | 테넌트/작업별 스케줄 조회 및 관리 | <video src="https://github.com/user-attachments/assets/db835c37-b568-4d0d-b2a1-01cd486c6959"></video>|
-| 4대보험 세율 및 간이세액 관리 | `/saas/tax-table, /saas/tax-rate` | 기준연도별 보험 요율 및 간이세액 조회/관리 | <video src="https://github.com/user-attachments/assets/e5fe9004-d671-4bf8-87e4-18dc3804346b"></video>|
+| 운영자 대시보드 | `/saas/dashboard` | SaaS 운영자 로그인 후 콘솔 진입 | <video src="https://github.com/user-attachments/assets/311f1fa5-523e-4b0c-9687-3bf19c37c397"></video> |
+| 자동 작업 스케줄 | `/saas/schedules` | 테넌트/작업별 스케줄 조회 및 관리 | <video src="https://github.com/user-attachments/assets/db835c37-b568-4d0d-b2a1-01cd486c6959"></video> |
+| 4대보험 세율 및 간이세액 관리 | `/saas/tax-table, /saas/tax-rate` | 기준연도별 보험 요율 및 간이세액 조회/관리 | <video src="https://github.com/user-attachments/assets/e5fe9004-d671-4bf8-87e4-18dc3804346b"></video> |
 
 </details>
 
@@ -500,7 +498,7 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 
 | 화면 | 경로 | 증적 시나리오 | 증적 |
 |------|------|---------------|------|
-| 관리자 온보딩 | `/app/onboarding` | 회사 초기 조직/정책/결재 기본 설정 | <video src="https://github.com/user-attachments/assets/3774dbac-220b-4f74-9307-cdd5735a9d2a"></video> |
+| 관리자 온보딩 | `/app/onboarding` | 회사 초기 조직/정책/결재 기본 설정 | <video src="https://github.com/user-attachments/assets/19bef925-318b-4093-8c1b-8396c8406029"></video> |
 | 구성원 목록 | `/app/members` | 구성원 검색, 필터, 직원 등록 | <video src="https://github.com/user-attachments/assets/8823b793-de0f-4466-acd8-ebc6fac76de9"></video> |
 | 구성원 상세 | `/app/members/$memberId` | 인사 정보, 소속, 이력 상세 확인 | <video src="https://github.com/user-attachments/assets/a2601280-94f9-4a19-b436-aecc0e3ac018"></video> |
 | 조직 구조 | `/app/organization?tab=structure` | 조직 트리 생성/수정/이동 | <video src="https://github.com/user-attachments/assets/ae4816f0-d55e-4249-b24b-f7687ab22cdc"></video> |
@@ -508,7 +506,7 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 직책 관리 | `/app/organization?tab=titles` | 직책 등록/수정/삭제 | <video src="https://github.com/user-attachments/assets/b7f60867-7d57-43f1-9fd6-537f05909941"></video> |
 | 역할·권한 | `/app/organization?tab=roles` | 기본 역할, 커스텀 권한 설정 | <video src="https://github.com/user-attachments/assets/432c1d42-ec4e-4a5f-8dcb-2ab6ca134b41"></video> |
 | 조직 개편 | `/app/organization?tab=restructure` | 조직 개편 시뮬레이션/적용 | <video src="https://github.com/user-attachments/assets/0628dcc8-4d19-47ad-8be2-3bc084530f86"></video> |
-| HR 정책 문서 | `/app/ai-documents` | 정책 문서 업로드, 목록 조회, 삭제, 챗봇 연동 증적 | <video src=""></video> |
+| HR 정책 문서 | `/app/ai-documents` | 정책 문서 업로드, 목록 조회, 삭제, 챗봇 연동 증적 | <video src="https://github.com/user-attachments/assets/bfd56355-856f-400e-8da2-e3bfff9c261f"></video> |
 | 자동 작업 관리 | `/app/admin/batch-schedule` | 배치 스케줄 조회/수정 | <video src="https://github.com/user-attachments/assets/325aca94-ad08-4eb2-998a-baa94e73d7ba"></video> |
 
 </details>
@@ -522,17 +520,16 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 결재 작성 허브 | `/app/approvals?tab=compose` | 결재 양식 선택, 문서 작성, 임시저장, 상신 | <video src="https://github.com/user-attachments/assets/e14c097f-a4d4-4dd8-962f-d6166ea1cb2c"></video> |
 | 결재 양식 설정 | `/app/approvals?tab=admin` | 회사별 맞춤 양식 생성/수정, 필드 구성 | <video src="https://github.com/user-attachments/assets/77431889-ade1-4578-90c0-0b5954a5f6e4"></video> <video src="https://github.com/user-attachments/assets/13f39d96-734e-484a-8589-379af8f45523"></video> |
 | 결재 대기함 | `/app/approvals?box=do-pending` | 결재 대기 문서 승인/반려 | <video src="https://github.com/user-attachments/assets/4d1e3472-ea33-4074-8cb2-9c10909ae598"></video> <video src="https://github.com/user-attachments/assets/5a61f2cd-b5d2-4405-83a4-924804666071"></video> |
-| 결재 처리함 | `/app/approvals?box=do-acted` | 내가 처리한 문서 조회 | 준비 중 |
-| 결재 예정함 | `/app/approvals?box=do-upcoming` | 다음 결재 예정 문서 확인 | 준비 중 |
+| 결재 처리함 | `/app/approvals?box=do-acted` | 내가 처리한 문서 조회 | <video src="https://github.com/user-attachments/assets/2f4c3e94-3ec4-43cf-b7d0-c9805c28e7c9"></video> |
+| 결재 예정함 | `/app/approvals?box=do-upcoming` | 다음 결재 예정 문서 확인 | <video src="https://github.com/user-attachments/assets/9ab0b81d-4cf9-4268-8d06-57c1551caf55"></video> |
 | 내 기안 전체 | `/app/approvals?box=per-all` | 내가 올린 문서 상태별 조회 | <video src="https://github.com/user-attachments/assets/28a6cccf-7685-4bb3-9779-f63b16964857"></video> |
-| 임시저장함 | `/app/approvals?box=per-draft` | 임시저장 문서 이어쓰기/삭제 | 준비 중 |
-| 참조/공람함 | `/app/approvals?box=per-viewers` | 참조/공람 문서 확인 | 준비 중 |
-| 부재 위임 | `/app/approvals/absence-proxy` | 결재 위임 등록/해제 | 준비 중 |
-| 공문 문서함 | `/app/approvals?box=per-official` | 공문 작성/발송/조회 | 준비 중 |
-| 부서 문서함 | `/app/approvals/department` | 부서 기안/발송/수신 문서 조회 | 준비 중 |
-| 부서 문서 고급검색 | `/app/approvals/department-search` | 조직/상태/유형별 검색 | 준비 중 |
-| 내 기안 검색 | `/app/approvals/my-requests` | 내 기안 문서 목록, 상세 검색 | 준비 중 |
-| 출퇴근 정정 신청 | `/app/approvals/correction-request` | 근태 화면에서 정정 결재 prefill 이동 | 준비 중 |
+| 임시저장함 | `/app/approvals?box=per-draft` | 임시저장 문서 이어쓰기/삭제 | <video src="https://github.com/user-attachments/assets/e5999e15-a3f5-40c7-aca0-1a3d2154d1a3"></video> <video src="https://github.com/user-attachments/assets/3965bf0f-3f6d-43c4-bcf7-ad4894b71226"></video> |
+| 참조/공람함 | `/app/approvals?box=per-viewers` | 참조/공람 문서 확인 | <video src="https://github.com/user-attachments/assets/dedcf538-9d3b-4770-ae01-10b3b9c6c113"></video> |
+| 부재 위임 | `/app/approvals/absence-proxy` | 결재 위임 등록/해제 | <video src="https://github.com/user-attachments/assets/739ab548-80c6-4012-bb62-60cf9a76912c"></video> <video src="https://github.com/user-attachments/assets/3e970eb9-748b-4060-a6b9-4bdce32ef0d6"></video> |
+| 공문 문서함 | `/app/approvals?box=per-official` | 공문 작성/발송/조회 | <video src="https://github.com/user-attachments/assets/45f0302f-6ef3-44d4-ac96-c314094cd5c9"></video> <video src="https://github.com/user-attachments/assets/78e732d6-eda6-4691-912c-5402273b1704"></video> <video src="https://github.com/user-attachments/assets/3c6aadc0-dab6-4084-925f-7ccd98e74225"></video> |
+| 부서 문서함 | `/app/approvals/department` | 부서 기안/발송/수신 문서 조회 | <video src="https://github.com/user-attachments/assets/f47599d0-199d-4d84-aed5-ecdec058dbaf"></video> |
+| 내 기안 검색 | `/app/approvals/my-requests` | 내 기안 문서 목록, 상세 검색 | <video src="https://github.com/user-attachments/assets/65a496a2-564f-4aa7-aafc-0588566e036f"></video> |
+| 출퇴근 정정 신청 | `/app/approvals/correction-request` | 근태 화면에서 정정 결재 prefill 이동 | <video src="https://github.com/user-attachments/assets/481f4d51-b7cb-4580-b3ad-2daed8f4f0a4"></video> |
 | 전자계약 발송 | `/app/contracts/send` | 계약 템플릿 선택, 대상자 선택, 일괄 발송 | <video src="https://github.com/user-attachments/assets/6d136d61-0b5b-4149-8383-87713809588b"></video> |
 | 계약 상세 딥링크 | `/app/approvals?tab=compose` | 계약 알림 클릭 후 상세/서명 흐름 확인 | <video src="https://github.com/user-attachments/assets/7a06fe5c-80a0-4445-a15b-56b793aac0d9"></video> |
 
@@ -551,7 +548,7 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 전사 근태 현황 | `/app/attendance/company` | 일근태/월근태 현황, 이상 근태 확인 | <video src="https://github.com/user-attachments/assets/6a7ccc51-09ba-43f8-9929-732a420dc8ab"></video> |
 | 근무스케줄 관리 | `/app/attendance/schedules` | 회사 근무 스케줄 정책 관리 | <video src="https://github.com/user-attachments/assets/e1b9b222-abae-423d-b85f-0b4be08a0194"></video> |
 | 연장근로 정책 | `/app/attendance/overtime-policies` | 초과근무 정책 등록/수정 | <video src="https://github.com/user-attachments/assets/8c00b853-b5c7-494b-a28f-d2a004d84ae7"></video> |
-| 시차 출퇴근 시간대 | `/app/attendance/flexible-slots` | 출퇴근시간 스케줄 등록/수정 | <video src="https://github.com/user-attachments/assets/67762f46-545e-4a62-83df-9ee8e6630110"></video>|
+| 시차 출퇴근 시간대 | `/app/attendance/flexible-slots` | 출퇴근시간 스케줄 등록/수정 | <video src="https://github.com/user-attachments/assets/67762f46-545e-4a62-83df-9ee8e6630110"></video> |
 | 연장근로 현황 | `/app/attendance/overtime-status` | 연장근로 사용 현황 집계 | <video src="https://github.com/user-attachments/assets/54002007-6c17-404c-88a3-5a38f951c779"></video> |
 | 휴무일/공휴일 관리 | `/app/attendance/holidays` | 공휴일 등록, 일괄 반영 | <video src="https://github.com/user-attachments/assets/4949074a-cb38-4469-bffd-51dc6e99dbb8"></video> |
 | 휴가 유형 관리 | `/app/leave/types` | 회사별 휴가 유형 등록/수정 | <video src="https://github.com/user-attachments/assets/147d717a-15f7-41c3-bcaf-bc4aa2a6d469"></video> |
@@ -575,11 +572,11 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 급여 정산 관리 | `/app/payroll/admin` | 월별 정산, 직원별 명세 생성/확정/지급 | <video src="https://github.com/user-attachments/assets/7f763de2-4606-4527-a947-4b7b38934938"></video> |
 | 급여대장 상세 조회 및 수정 | `/app/payroll/admin/$payrollId` | 직원별 급여 명세서 수정 | <video src="https://github.com/user-attachments/assets/f1cda2ea-6ec0-4ae8-a6f5-b1e841be249c"></video> |
 | 세금·4대보험 집계 | `/app/payroll/tax-summary` | 월별 보험/원천세 집계 조회 | <video src="https://github.com/user-attachments/assets/069c90a6-6c4e-479f-bc14-f59cd849062e"></video> |
-| 급여 정책 | `/app/salary/settings` | 급여 정책 설정 | <video src="https://github.com/user-attachments/assets/bdb510e9-5c11-4d72-bb7c-dc4bdf8f9ce6"></video>|
+| 급여 정책 | `/app/salary/settings` | 급여 정책 설정 | <video src="https://github.com/user-attachments/assets/bdb510e9-5c11-4d72-bb7c-dc4bdf8f9ce6"></video> |
 | 호봉표 관리 | `/app/salary/pay-grade-table` | 호봉 테이블 등록/수정 | <video src="https://github.com/user-attachments/assets/ff3f71d5-dcf1-4112-99d9-8b8e983d1534"></video> |
 | 연차수당 정산 | `/app/salary/unused-leave` | 연말 미사용 연차수당 정산 내역 | <video src="https://github.com/user-attachments/assets/aafc8b76-e5c5-4edd-92e2-74704e96454b"></video> |
 | 퇴직급여 정책 | `/app/salary/retirement-policy` | 법정/DB/DC 퇴직급여 정책 설정 | <video src="https://github.com/user-attachments/assets/53d01132-89f1-4e52-8762-08d6ebeed316"></video> |
-| 상여 정책 | `/app/salary/bonus-policy` | 정기상여/성과급/명절상여 정책 설정 | <video src="https://github.com/user-attachments/assets/9a91a345-f08e-4dad-b085-a6d9109533a1"></video>|
+| 상여 정책 | `/app/salary/bonus-policy` | 정기상여/성과급/명절상여 정책 설정 | <video src="https://github.com/user-attachments/assets/9a91a345-f08e-4dad-b085-a6d9109533a1"></video> |
 
 </details>
 

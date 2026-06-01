@@ -463,7 +463,7 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 
 
 <details>
-<summary><strong>공통 앱 셸 · 대시보드/검색/알림/AI</strong></summary>
+<summary><strong>공통 앱 셸 · 대시보드/검색/알림</strong></summary>
 
 | 화면/기능 | 경로 | 증적 시나리오 | 증적 |
 |-----------|------|---------------|------|
@@ -475,12 +475,20 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 통합 검색 | 공통 헤더 | 메뉴/구성원/문서 검색 후 상세 이동 | <video src="https://github.com/user-attachments/assets/e5e43e84-8083-4fc3-892e-976c5b61ee27"></video> |
 | 조직도 모달 | 공통 앱 셸 | 조직 트리 조회, 구성원 상세 패널 확인 | <video src="https://github.com/user-attachments/assets/7ab593ce-5943-444a-af6f-76f45705e02b"></video> |
 | 멤버 채팅 | 공통 헤더/모달 | 1:1/그룹 채팅, 파일/이미지 메시지, 읽음 처리 | <video src="https://github.com/user-attachments/assets/471e4cf1-bad2-43c3-92a4-37fb7809f9cd"></video> |
-| AI 챗봇 | 우측 하단 FAB | 정책 질문, 실시간 조회 질문, 답변 출처 확인 | <video src=""></video> |
-| AI 회의록 | 공통 헤더 모달 | 녹음 파일 업로드, 회의록 생성, 결과 확인 | <video src="https://github.com/user-attachments/assets/359a41a0-8d5a-428e-aa60-c0fb91fbfc12"></video> |
 | 마이페이지 | `/app/me` | 내 정보 조회 | <video src="https://github.com/user-attachments/assets/f48e937f-bde0-46f2-8a21-2525ea8fd51c"></video> |
 
 </details>
 
+<details>
+<summary><strong>AI 챗봇 / AI 회의록</strong></summary>
+
+| 화면/기능 | 경로 | 증적 시나리오 | 증적 |
+|-----------|------|---------------|------|
+| AI 챗봇 | 우측 하단 FAB | 정책 질문, 실시간 조회 질문, 답변 출처 확인 | <video src=""></video> |
+| HR 정책 문서 | `/app/ai-documents` | 정책 문서 업로드, 목록 조회, 삭제, 챗봇 연동 증적 | <video src="https://github.com/user-attachments/assets/bfd56355-856f-400e-8da2-e3bfff9c261f"></video> |
+| AI 회의록 | 공통 헤더 모달 | 녹음 파일 업로드, 회의록 생성, 결과 확인 | <video src="https://github.com/user-attachments/assets/359a41a0-8d5a-428e-aa60-c0fb91fbfc12"></video> |
+
+</details>
 
 <details>
 <summary><strong>SaaS 운영자 콘솔</strong></summary>
@@ -506,7 +514,6 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 | 직책 관리 | `/app/organization?tab=titles` | 직책 등록/수정/삭제 | <video src="https://github.com/user-attachments/assets/b7f60867-7d57-43f1-9fd6-537f05909941"></video> |
 | 역할·권한 | `/app/organization?tab=roles` | 기본 역할, 커스텀 권한 설정 | <video src="https://github.com/user-attachments/assets/432c1d42-ec4e-4a5f-8dcb-2ab6ca134b41"></video> |
 | 조직 개편 | `/app/organization?tab=restructure` | 조직 개편 시뮬레이션/적용 | <video src="https://github.com/user-attachments/assets/0628dcc8-4d19-47ad-8be2-3bc084530f86"></video> |
-| HR 정책 문서 | `/app/ai-documents` | 정책 문서 업로드, 목록 조회, 삭제, 챗봇 연동 증적 | <video src="https://github.com/user-attachments/assets/bfd56355-856f-400e-8da2-e3bfff9c261f"></video> |
 | 자동 작업 관리 | `/app/admin/batch-schedule` | 배치 스케줄 조회/수정 | <video src="https://github.com/user-attachments/assets/325aca94-ad08-4eb2-998a-baa94e73d7ba"></video> |
 
 </details>

@@ -484,7 +484,7 @@ AI 챗봇이 회사 정책 문서를 기반으로 답변하려면, HR 담당자�
 
 | 화면/기능 | 경로 | 증적 시나리오 | 증적 |
 |-----------|------|---------------|------|
-| AI 챗봇 | 우측 하단 FAB | 정책 질문, 실시간 조회 질문, 답변 출처 확인 | <video src=""></video> |
+| AI 챗봇 | 우측 하단 FAB | 정책 질문, 실시간 조회 질문, 챗봇 결재 워크플로우 | <img width="250" height="400" alt="Image" src="https://github.com/user-attachments/assets/3950f767-13b9-4dc4-a846-4ce5280265d8" /> <img width="252" height="400" alt="Image" src="https://github.com/user-attachments/assets/9b755eb0-102c-43f5-ac71-94cfb7f77333" /> <img width="255" height="400" alt="Image" src="https://github.com/user-attachments/assets/c3d44681-c450-4cee-a477-e3c0b8832ba5" /> |
 | HR 정책 문서 | `/app/ai-documents` | 정책 문서 업로드, 목록 조회, 삭제, 챗봇 연동 증적 | <video src="https://github.com/user-attachments/assets/bfd56355-856f-400e-8da2-e3bfff9c261f"></video> |
 | AI 회의록 | 공통 헤더 모달 | 녹음 파일 업로드, 회의록 생성, 결과 확인 | <video src="https://github.com/user-attachments/assets/359a41a0-8d5a-428e-aa60-c0fb91fbfc12"></video> |
 
